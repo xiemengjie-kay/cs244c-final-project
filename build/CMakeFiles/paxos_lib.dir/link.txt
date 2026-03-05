@@ -1,0 +1,2 @@
+/usr/bin/ar qc libpaxos_lib.a CMakeFiles/paxos_lib.dir/src/paxos.cpp.o
+/usr/bin/ranlib libpaxos_lib.a

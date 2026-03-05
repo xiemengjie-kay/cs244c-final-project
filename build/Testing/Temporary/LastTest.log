@@ -1,0 +1,19 @@
+Start testing: Mar 04 15:25 PST
+----------------------------------------------------------
+1/1 Testing: paxos_tests
+1/1 Test: paxos_tests
+Command: "/Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build/paxos_tests"
+Directory: /Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build
+"paxos_tests" start time: Mar 04 15:25 PST
+Output:
+----------------------------------------------------------
+All tests passed
+<end of output>
+Test time =   0.04 sec
+----------------------------------------------------------
+Test Passed.
+"paxos_tests" end time: Mar 04 15:25 PST
+"paxos_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 04 15:25 PST
