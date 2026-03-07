@@ -28,6 +28,7 @@ This project targets CS244C-style systems experimentation: readable consensus lo
 - `include/paxos.hpp`: protocol messages, node API, and cluster API
 - `src/paxos.cpp`: Multi-Paxos implementation
 - `src/main.cpp`: runnable demo
+- `src/paxos_process.cpp`: multi-process UDP node runner (one node per OS process)
 - `tests/test_paxos.cpp`: deterministic integration tests
 - `docs/final_paper.md`: final report
 
@@ -44,6 +45,39 @@ Run demo:
 ```bash
 ./build/paxos_demo
 ```
+
+Run single-node process binary help:
+
+```bash
+./build/paxos_process --help
+```
+
+## Run 3 Paxos processes on one computer
+
+Open 3 terminals and run:
+
+Terminal 1:
+```bash
+./build/paxos_process --id 1 --ports 1:15001,2:15002,3:15003
+```
+
+Terminal 2:
+```bash
+./build/paxos_process --id 2 --ports 1:15001,2:15002,3:15003
+```
+
+Terminal 3:
+```bash
+./build/paxos_process --id 3 --ports 1:15001,2:15002,3:15003
+```
+
+In any node terminal:
+
+- `/status`: show `leader`, ballot, and commit index
+- `any regular text`: submit a client command
+- `/crash`: simulate local process-side node crash
+- `/restore`: restore that node
+- `/quit`: stop that process
 
 ## Isolation guarantee
 
@@ -63,7 +97,9 @@ This removes callback nesting and keeps protocol transitions close to textbook P
 
 ### NOS layer
 
-`SimulatedNetwork<PaxosMessage>` provides endpoint registration and controlled faults while preserving deterministic execution order. Communication is message-based through `Mailbox<T>` awaitables.
+`SimulatedNetwork<PaxosMessage>` provides endpoint registration and controlled faults for deterministic tests. Communication is message-based through `Mailbox<T>` awaitables.
+
+`paxos_process` additionally provides UDP localhost transport so each Paxos node can run as a separate process.
 
 ### Consensus mechanics
 
@@ -82,7 +118,7 @@ This removes callback nesting and keeps protocol transitions close to textbook P
 
 ## Limitations and future work
 
-- Deterministic in-memory NOS (not socket/RDMA transport)
+- UDP localhost process runner is for development/testing (not production-hardened transport)
 - Static membership only (no reconfiguration)
 - No persistent storage (state is in-memory)
 - No snapshot compaction yet (interfaces can be extended to add this)

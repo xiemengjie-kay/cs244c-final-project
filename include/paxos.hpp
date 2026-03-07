@@ -73,10 +73,15 @@ struct PaxosMessage {
   PaxosPayload payload;
 };
 
+struct NetworkHooks {
+  std::function<void(int node_id, Mailbox<PaxosMessage>* inbox)> register_endpoint;
+  std::function<void(PaxosMessage msg)> send;
+  std::function<bool(int node_id)> alive;
+};
+
 class PaxosNode {
  public:
-  PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime,
-            SimulatedNetwork<PaxosMessage>& network);
+  PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks);
 
   void start();
   void submit_client_command(std::string command);
@@ -138,7 +143,7 @@ class PaxosNode {
   int id_;
   std::vector<int> all_nodes_;
   Runtime& runtime_;
-  SimulatedNetwork<PaxosMessage>& network_;
+  NetworkHooks network_;
   Mailbox<PaxosMessage> inbox_;
 
   bool is_leader_{false};

@@ -16,6 +16,9 @@ target_compile_options(paxos_lib PRIVATE -Wall -Wextra -Wpedantic)
 add_executable(paxos_demo src/main.cpp)
 target_link_libraries(paxos_demo PRIVATE paxos_lib)
 
+add_executable(paxos_process src/paxos_process.cpp)
+target_link_libraries(paxos_process PRIVATE paxos_lib)
+
 enable_testing()
 add_executable(paxos_tests tests/test_paxos.cpp)
 target_link_libraries(paxos_tests PRIVATE paxos_lib)

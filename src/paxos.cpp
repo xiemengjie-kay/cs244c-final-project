@@ -7,12 +7,11 @@
 
 namespace lp {
 
-PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime,
-                     SimulatedNetwork<PaxosMessage>& network)
+PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks)
     : id_(node_id),
       all_nodes_(std::move(all_nodes)),
       runtime_(runtime),
-      network_(network),
+      network_(std::move(hooks)),
       inbox_(runtime),
       election_timeout_ticks_(14 + static_cast<std::uint64_t>(node_id * 3)) {
   network_.register_endpoint(id_, &inbox_);
@@ -411,7 +410,14 @@ PaxosCluster::PaxosCluster(int n) : network_(runtime_) {
 
   nodes_.reserve(static_cast<std::size_t>(n));
   for (int id : ids) {
-    nodes_.emplace_back(id, ids, runtime_, network_);
+    NetworkHooks hooks{
+        .register_endpoint = [this](int node_id, Mailbox<PaxosMessage>* inbox) {
+          network_.register_endpoint(node_id, inbox);
+        },
+        .send = [this](PaxosMessage msg) { network_.send(std::move(msg)); },
+        .alive = [this](int node_id) { return network_.alive(node_id); },
+    };
+    nodes_.emplace_back(id, ids, runtime_, std::move(hooks));
   }
 }
 
