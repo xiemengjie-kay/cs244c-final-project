@@ -1,6 +1,0 @@
-/Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build/CMakeFiles/paxos_lib.dir
-/Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build/CMakeFiles/paxos_demo.dir
-/Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build/CMakeFiles/paxos_tests.dir
-/Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build/CMakeFiles/test.dir
-/Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build/CMakeFiles/edit_cache.dir
-/Users/kaylee/Kaylee/Stf/Classes/CS244C/FinalProject/build/CMakeFiles/rebuild_cache.dir
