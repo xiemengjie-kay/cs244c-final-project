@@ -1,35 +1,34 @@
-using NodeId = uint32_t;
+#pragma once
 
-struct Message {
-	MessageType type;
-	NodeId from;
-	NodeId to;
-	uint64_t term_or_ballot;
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
 
-	Payload payload;
-};
+namespace msg {
+
+using NodeId = std::uint32_t;
 
 enum class MessageType {
-	CLIENT_REQUEST,
-	CLIENT_RESPONSE,
-	FORWARD_REQUEST,
-
-	PREPARE,
-	PROMISE,
-
-	ACCEPT,
-	ACCEPTED,
-
-	COMMIT,
-
-	HEARTBEAT
+  CLIENT_REQUEST = 0,
+  CLIENT_RESPONSE,
+  FORWARD_REQUEST,
+  PREPARE,
+  PROMISE,
+  ACCEPT_REQUEST,
+  ACCEPTED,
+  COMMIT,
+  HEARTBEAT,
+  SYNC_REQUEST,
+  SYNC_DATA
 };
 
 struct Value {
 	bool isRead; // Always read everything
 	// For write:
 	uint32_t row;
-	uint32_t[2] column_range; // [inclusive-exclusive)
+	uint32_t column_range[2]; // [inclusive-exclusive)
 	std::string val;		  // e.g. "append Alice"
 };
 
@@ -75,8 +74,21 @@ struct Commit {
 };
 
 struct Heartbeat {
+	uint64_t ballot;
+	uint64_t committed_up_to;
 };
 
-using Payload = std::variant<ClientRequest, ClientResponse, ForwardRequest,
-	Prepare, Promise, Accept, Accepted, Commit>;
+using Payload =
+    std::variant<ClientRequest, ClientResponse, ForwardRequest, Prepare, Promise, Accept, Accepted, Commit,
+                 Heartbeat>;
+
+struct Message {
+  MessageType type{MessageType::PREPARE};
+  NodeId from{0};
+  NodeId to{0};
+  std::uint64_t term_or_ballot{0};
+  Payload payload;
+};
+
+}  // namespace msg
 
