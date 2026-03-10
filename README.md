@@ -20,19 +20,25 @@ Run tests:
 ctest --test-dir build --output-on-failure
 ```
 
-Run Paxos with 3 processes (open 3 terminals, one command each):
+Run local in-memory demo:
+
+```bash
+./build/paxos_demo
+```
+
+Run one Paxos node per process (3 terminals):
 
 Terminal 1:
 ```bash
-./build/paxos_demo --id 1 --ports 1:15001,2:15002,3:15003
+./build/paxos_node --id 1 --nodes 1:15001,2:15002,3:15003
 ```
 
 Terminal 2:
 ```bash
-./build/paxos_demo --id 2 --ports 1:15001,2:15002,3:15003
+./build/paxos_node --id 2 --nodes 1:15001,2:15002,3:15003
 ```
 
 Terminal 3:
 ```bash
-./build/paxos_demo --id 3 --ports 1:15001,2:15002,3:15003
+./build/paxos_node --id 3 --nodes 1:15001,2:15002,3:15003
 ```

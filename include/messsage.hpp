@@ -6,7 +6,6 @@
 #include <variant>
 #include <vector>
 
-namespace msg {
 
 using NodeId = std::uint32_t;
 
@@ -90,5 +89,4 @@ struct Message {
   Payload payload;
 };
 
-}  // namespace msg
 
