@@ -1,13 +1,113 @@
 #include "paxos.hpp"
 
+#include <arpa/inet.h>
+
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <type_traits>
 
-namespace lp {
+void write_i32(std::string& out, int value) {
+  std::uint32_t net = htonl(static_cast<std::uint32_t>(value));
+  out.append(reinterpret_cast<const char*>(&net), sizeof(net));
+}
 
-PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks)
+bool read_i32(const std::string& in, std::size_t& pos, int& value) {
+  if (pos + sizeof(std::uint32_t) > in.size()) {
+    return false;
+  }
+  std::uint32_t net = 0;
+  std::memcpy(&net, in.data() + pos, sizeof(net));
+  pos += sizeof(net);
+  value = static_cast<int>(ntohl(net));
+  return true;
+}
+
+void write_string(std::string& out, const std::string& s) {
+  write_i32(out, static_cast<int>(s.size()));
+  out.append(s);
+}
+
+bool read_string(const std::string& in, std::size_t& pos, std::string& s) {
+  int len = 0;
+  if (!read_i32(in, pos, len) || len < 0) {
+    return false;
+  }
+  if (pos + static_cast<std::size_t>(len) > in.size()) {
+    return false;
+  }
+  s.assign(in.data() + pos, static_cast<std::size_t>(len));
+  pos += static_cast<std::size_t>(len);
+  return true;
+}
+
+Value make_value(std::string text) {
+  Value v{};
+  v.isRead = false;
+  v.row = 0;
+  v.column_range[0] = 0;
+  v.column_range[1] = 0;
+  v.val = std::move(text);
+  return v;
+}
+
+std::string encode_entries_blob(const std::vector<PaxosNode::RecoveredEntry>& entries) {
+  std::string blob;
+  write_i32(blob, static_cast<int>(entries.size()));
+  for (const auto& e : entries) {
+    write_i32(blob, e.slot);
+    write_i32(blob, e.ballot);
+    write_string(blob, e.command);
+  }
+  return blob;
+}
+
+bool decode_entries_blob(const std::string& blob, std::vector<PaxosNode::RecoveredEntry>& entries) {
+  entries.clear();
+  std::size_t pos = 0;
+  int n = 0;
+  if (!read_i32(blob, pos, n) || n < 0) {
+    return false;
+  }
+  entries.reserve(static_cast<std::size_t>(n));
+  for (int i = 0; i < n; ++i) {
+    PaxosNode::RecoveredEntry e{};
+    if (!read_i32(blob, pos, e.slot) || !read_i32(blob, pos, e.ballot) || !read_string(blob, pos, e.command)) {
+      return false;
+    }
+    entries.push_back(std::move(e));
+  }
+  return true;
+}
+
+MessageType payload_type(const Payload& payload) {
+  return std::visit(
+      [](const auto& p) -> MessageType {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, Prepare>) {
+          return MessageType::PREPARE;
+        } else if constexpr (std::is_same_v<T, Promise>) {
+          return MessageType::PROMISE;
+        } else if constexpr (std::is_same_v<T, Accept>) {
+          return MessageType::ACCEPT_REQUEST;
+        } else if constexpr (std::is_same_v<T, Accepted>) {
+          return MessageType::ACCEPTED;
+        } else if constexpr (std::is_same_v<T, Commit>) {
+          return MessageType::COMMIT;
+        } else if constexpr (std::is_same_v<T, Heartbeat>) {
+          return MessageType::HEARTBEAT;
+        } else if constexpr (std::is_same_v<T, ForwardRequest>) {
+          return MessageType::FORWARD_REQUEST;
+        } else {
+          return MessageType::FORWARD_REQUEST;
+        }
+      },
+      payload);
+}
+
+PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, lp::Runtime& runtime, NetworkHooks hooks)
     : id_(node_id),
       all_nodes_(std::move(all_nodes)),
       runtime_(runtime),
@@ -34,49 +134,55 @@ void PaxosNode::submit_client_command(std::string command) {
   }
 }
 
-DetachedTask PaxosNode::message_loop() {
+lp::DetachedTask PaxosNode::message_loop() {
   while (true) {
     auto msg = co_await inbox_.receive();
     on_message(std::move(msg));
   }
 }
 
-DetachedTask PaxosNode::election_loop() {
+lp::DetachedTask PaxosNode::election_loop() {
   while (true) {
-    co_await SleepFor{runtime_, 3};
+    co_await lp::SleepFor{runtime_, 3};
     maybe_start_election();
   }
 }
 
-DetachedTask PaxosNode::heartbeat_loop() {
+lp::DetachedTask PaxosNode::heartbeat_loop() {
   while (true) {
-    co_await SleepFor{runtime_, 4};
+    co_await lp::SleepFor{runtime_, 4};
     if (is_leader_ && network_.alive(id_)) {
-      broadcast(Heartbeat{.ballot = active_ballot_, .committed_up_to = commit_index_});
+      broadcast(Heartbeat{
+          .ballot = static_cast<std::uint64_t>(active_ballot_),
+          .committed_up_to = static_cast<std::uint64_t>(commit_index_),
+      });
     }
   }
 }
 
-void PaxosNode::on_message(PaxosMessage msg) {
+void PaxosNode::on_message(Message msg) {
+  const int src = static_cast<int>(msg.from);
   std::visit(
-      [this, src = msg.src](auto&& payload) {
+      [this, src, msg_type = msg.type, ballot = static_cast<int>(msg.term_or_ballot)](auto&& payload) {
         using T = std::decay_t<decltype(payload)>;
         if constexpr (std::is_same_v<T, Prepare>) {
           on_prepare(src, payload);
         } else if constexpr (std::is_same_v<T, Promise>) {
           on_promise(src, payload);
-        } else if constexpr (std::is_same_v<T, AcceptRequest>) {
+        } else if constexpr (std::is_same_v<T, Accept>) {
           on_accept_request(src, payload);
         } else if constexpr (std::is_same_v<T, Accepted>) {
           on_accepted(src, payload);
         } else if constexpr (std::is_same_v<T, Commit>) {
-          on_commit(src, payload);
+          on_commit(src, payload, ballot);
         } else if constexpr (std::is_same_v<T, Heartbeat>) {
           on_heartbeat(src, payload);
-        } else if constexpr (std::is_same_v<T, SyncRequest>) {
-          on_sync_request(src, payload);
-        } else if constexpr (std::is_same_v<T, SyncData>) {
-          on_sync_data(src, payload);
+        } else if constexpr (std::is_same_v<T, ForwardRequest>) {
+          if (msg_type == MessageType::SYNC_REQUEST) {
+            on_sync_request(src, payload);
+          } else if (msg_type == MessageType::SYNC_DATA) {
+            on_sync_data(src, payload);
+          }
         }
       },
       msg.payload);
@@ -84,137 +190,160 @@ void PaxosNode::on_message(PaxosMessage msg) {
 
 void PaxosNode::on_prepare(int from, const Prepare& prepare) {
   bool ok = false;
-  if (prepare.ballot >= promised_ballot_) {
-    promised_ballot_ = prepare.ballot;
+  const int ballot = static_cast<int>(prepare.ballot);
+  if (ballot >= promised_ballot_) {
+    promised_ballot_ = ballot;
     ok = true;
-    step_down_if_stale(prepare.ballot);
+    step_down_if_stale(ballot);
     last_leader_contact_ = runtime_.tick();
   }
 
-  Promise promise{
-      .ballot = prepare.ballot,
-      .ok = ok,
-      .from_id = id_,
-      .last_committed = commit_index_,
-      .accepted_entries = ok ? collect_accepted_entries() : std::vector<LogEntry>{},
-  };
+  Promise promise{};
+  promise.ballot = static_cast<std::uint64_t>(ballot);
+  promise.accepted_ballot = static_cast<std::uint64_t>(commit_index_);
+  if (ok) {
+    promise.accepted_value = make_value(encode_entries_blob(collect_accepted_entries()));
+  }
   send(from, promise);
 }
 
-void PaxosNode::on_promise(int /*from*/, const Promise& promise) {
+void PaxosNode::on_promise(int from, const Promise& promise) {
   if (!prepare_state_.has_value()) {
     return;
   }
   auto& prep = *prepare_state_;
-  if (prep.completed || prep.ballot != promise.ballot) {
+  const int ballot = static_cast<int>(promise.ballot);
+  if (prep.completed || prep.ballot != ballot) {
     return;
   }
-  if (!promise.ok) {
-    if (promise.ballot > active_ballot_) {
-      step_down_if_stale(promise.ballot);
+  const bool ok = promise.accepted_value.has_value();
+  if (!ok) {
+    if (ballot > active_ballot_) {
+      step_down_if_stale(ballot);
     }
     return;
   }
 
-  prep.promises[promise.from_id] = promise;
+  prep.promises[from] = promise;
   if (static_cast<int>(prep.promises.size()) < quorum()) {
     return;
   }
 
   prep.completed = true;
-  become_leader(promise.ballot);
+  become_leader(ballot);
 }
 
-void PaxosNode::on_accept_request(int from, const AcceptRequest& request) {
+void PaxosNode::on_accept_request(int from, const Accept& request) {
   bool ok = false;
-  if (request.ballot >= promised_ballot_) {
-    promised_ballot_ = request.ballot;
-    step_down_if_stale(request.ballot);
+  const int ballot = static_cast<int>(request.ballot);
+  const int slot = static_cast<int>(request.slot);
+  if (ballot >= promised_ballot_) {
+    promised_ballot_ = ballot;
+    step_down_if_stale(ballot);
 
-    auto& accepted = log_[request.slot];
+    auto& accepted = log_[slot];
     if (!accepted.committed || accepted.command.empty()) {
-      accepted.ballot = request.ballot;
-      accepted.command = request.command;
+      accepted.ballot = ballot;
+      accepted.command = request.value.val;
     }
     ok = true;
   }
 
-  send(from, Accepted{.ballot = ok ? request.ballot : promised_ballot_,
-                      .slot = request.slot,
-                      .ok = ok,
-                      .from_id = id_});
+  send_typed(from,
+             Accepted{
+                 .ballot = static_cast<std::uint64_t>(ok ? ballot : promised_ballot_),
+                 .slot = static_cast<std::uint64_t>(slot),
+             },
+             MessageType::ACCEPTED);
 }
 
-void PaxosNode::on_accepted(int /*from*/, const Accepted& accepted) {
+void PaxosNode::on_accepted(int from, const Accepted& accepted) {
   if (!is_leader_) {
     return;
   }
-  if (accepted.ballot > active_ballot_) {
-    step_down_if_stale(accepted.ballot);
+  const int ballot = static_cast<int>(accepted.ballot);
+  if (ballot > active_ballot_) {
+    step_down_if_stale(ballot);
     return;
   }
-  if (accepted.ballot != active_ballot_ || !accepted.ok) {
+  if (ballot != active_ballot_) {
     return;
   }
 
-  auto it = proposals_.find(accepted.slot);
+  const int slot = static_cast<int>(accepted.slot);
+  auto it = proposals_.find(slot);
   if (it == proposals_.end()) {
     return;
   }
 
-  it->second.accepts[accepted.from_id] = true;
-  try_commit_slot(accepted.slot);
+  it->second.accepts[from] = true;
+  try_commit_slot(slot);
 }
 
-void PaxosNode::on_commit(int /*from*/, const Commit& commit) {
-  if (commit.ballot >= promised_ballot_) {
-    promised_ballot_ = commit.ballot;
+void PaxosNode::on_commit(int /*from*/, const Commit& commit, int commit_ballot) {
+  if (commit_ballot >= promised_ballot_) {
+    promised_ballot_ = commit_ballot;
   }
-  step_down_if_stale(commit.ballot);
+  step_down_if_stale(commit_ballot);
 
-  auto& accepted = log_[commit.slot];
-  accepted.ballot = commit.ballot;
-  accepted.command = commit.command;
+  const int slot = static_cast<int>(commit.slot);
+  auto& accepted = log_[slot];
+  accepted.ballot = commit_ballot;
+  accepted.command = commit.value.val;
   accepted.committed = true;
 
-  next_proposal_slot_ = std::max(next_proposal_slot_, commit.slot + 1);
+  next_proposal_slot_ = std::max(next_proposal_slot_, slot + 1);
   apply_commits();
 }
 
 void PaxosNode::on_heartbeat(int from, const Heartbeat& heartbeat) {
-  if (heartbeat.ballot >= promised_ballot_) {
-    promised_ballot_ = heartbeat.ballot;
+  const int hb_ballot = static_cast<int>(heartbeat.ballot);
+  if (hb_ballot >= promised_ballot_) {
+    promised_ballot_ = hb_ballot;
     if (from != id_) {
-      step_down_if_stale(heartbeat.ballot);
+      step_down_if_stale(hb_ballot);
     }
     last_leader_contact_ = runtime_.tick();
   }
 
-  if (heartbeat.committed_up_to > commit_index_) {
-    send(from, SyncRequest{.from_slot = commit_index_ + 1});
+  if (static_cast<int>(heartbeat.committed_up_to) > commit_index_) {
+    ForwardRequest req{};
+    req.request.client_id = 0;
+    req.request.request_id = static_cast<std::uint32_t>(commit_index_ + 1);
+    req.request.value = make_value("");
+    send_typed(from, req, MessageType::SYNC_REQUEST);
   }
 }
 
-void PaxosNode::on_sync_request(int from, const SyncRequest& request) {
+void PaxosNode::on_sync_request(int from, const ForwardRequest& request) {
   if (!is_leader_) {
     return;
   }
 
-  std::vector<LogEntry> entries;
-  for (int slot = request.from_slot; slot <= commit_index_; ++slot) {
+  std::vector<RecoveredEntry> entries;
+  const int from_slot = static_cast<int>(request.request.request_id);
+  for (int slot = from_slot; slot <= commit_index_; ++slot) {
     auto it = log_.find(slot);
     if (it != log_.end() && it->second.committed) {
-      entries.push_back(LogEntry{.slot = slot, .ballot = it->second.ballot, .command = it->second.command});
+      entries.push_back(RecoveredEntry{.slot = slot, .ballot = it->second.ballot, .command = it->second.command});
     }
   }
 
   if (!entries.empty()) {
-    send(from, SyncData{.committed_entries = std::move(entries)});
+    ForwardRequest data{};
+    data.request.client_id = 0;
+    data.request.request_id = static_cast<std::uint32_t>(from_slot);
+    data.request.value = make_value(encode_entries_blob(entries));
+    send_typed(from, data, MessageType::SYNC_DATA);
   }
 }
 
-void PaxosNode::on_sync_data(int /*from*/, const SyncData& data) {
-  for (const auto& e : data.committed_entries) {
+void PaxosNode::on_sync_data(int /*from*/, const ForwardRequest& data) {
+  std::vector<RecoveredEntry> entries;
+  if (!decode_entries_blob(data.request.value.val, entries)) {
+    return;
+  }
+  for (const auto& e : entries) {
     auto& local = log_[e.slot];
     local.ballot = e.ballot;
     local.command = e.command;
@@ -245,16 +374,13 @@ void PaxosNode::maybe_start_election() {
   active_ballot_ = ballot;
   last_leader_contact_ = runtime_.tick();
   prepare_state_ = PrepareState{.ballot = ballot};
-  Promise self_promise{
-      .ballot = ballot,
-      .ok = true,
-      .from_id = id_,
-      .last_committed = commit_index_,
-      .accepted_entries = collect_accepted_entries(),
-  };
+  Promise self_promise{};
+  self_promise.ballot = static_cast<std::uint64_t>(ballot);
+  self_promise.accepted_ballot = static_cast<std::uint64_t>(commit_index_);
+  self_promise.accepted_value = make_value(encode_entries_blob(collect_accepted_entries()));
   prepare_state_->promises[id_] = std::move(self_promise);
 
-  broadcast(Prepare{.ballot = ballot});
+  broadcast(Prepare{.ballot = static_cast<std::uint64_t>(ballot)});
 }
 
 void PaxosNode::become_leader(int ballot) {
@@ -263,10 +389,17 @@ void PaxosNode::become_leader(int ballot) {
   promised_ballot_ = std::max(promised_ballot_, ballot);
   last_leader_contact_ = runtime_.tick();
 
-  std::unordered_map<int, LogEntry> chosen;
+  std::unordered_map<int, RecoveredEntry> chosen;
   if (prepare_state_.has_value()) {
     for (const auto& [_, promise] : prepare_state_->promises) {
-      for (const auto& entry : promise.accepted_entries) {
+      if (!promise.accepted_value.has_value()) {
+        continue;
+      }
+      std::vector<RecoveredEntry> entries;
+      if (!decode_entries_blob(promise.accepted_value->val, entries)) {
+        continue;
+      }
+      for (const auto& entry : entries) {
         auto it = chosen.find(entry.slot);
         if (it == chosen.end() || entry.ballot > it->second.ballot) {
           chosen[entry.slot] = entry;
@@ -330,7 +463,11 @@ void PaxosNode::propose_slot(int slot, std::string command) {
   accepted.ballot = active_ballot_;
   accepted.command = command;
 
-  broadcast(AcceptRequest{.ballot = active_ballot_, .slot = slot, .command = command});
+  Accept req{};
+  req.ballot = static_cast<std::uint64_t>(active_ballot_);
+  req.slot = static_cast<std::uint64_t>(slot);
+  req.value = make_value(command);
+  broadcast(req);
   try_commit_slot(slot);
 }
 
@@ -355,7 +492,10 @@ void PaxosNode::try_commit_slot(int slot) {
   accepted.ballot = active_ballot_;
   accepted.command = proposal.command;
 
-  broadcast(Commit{.ballot = active_ballot_, .slot = slot, .command = proposal.command});
+  Commit commit{};
+  commit.slot = static_cast<std::uint64_t>(slot);
+  commit.value = make_value(proposal.command);
+  broadcast(commit);
   apply_commits();
 
   proposals_.erase(it);
@@ -373,22 +513,48 @@ void PaxosNode::apply_commits() {
   }
 }
 
-std::vector<LogEntry> PaxosNode::collect_accepted_entries() const {
-  std::vector<LogEntry> out;
+std::vector<PaxosNode::RecoveredEntry> PaxosNode::collect_accepted_entries() const {
+  std::vector<RecoveredEntry> out;
   out.reserve(log_.size());
   for (const auto& [slot, accepted] : log_) {
     if (slot > commit_index_ && !accepted.command.empty()) {
-      out.push_back(LogEntry{.slot = slot, .ballot = accepted.ballot, .command = accepted.command});
+      out.push_back(RecoveredEntry{.slot = slot, .ballot = accepted.ballot, .command = accepted.command});
     }
   }
   return out;
 }
 
-void PaxosNode::send(int dst, PaxosPayload payload) {
-  network_.send(PaxosMessage{.src = id_, .dst = dst, .payload = std::move(payload)});
+void PaxosNode::send(int dst, Payload payload) {
+  const MessageType type = payload_type(payload);
+  send_typed(dst, std::move(payload), type);
 }
 
-void PaxosNode::broadcast(PaxosPayload payload) {
+void PaxosNode::send_typed(int dst, Payload payload, MessageType type) {
+  std::uint64_t term_or_ballot = 0;
+  std::visit(
+      [&term_or_ballot, type, this](const auto& p) {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, Prepare> || std::is_same_v<T, Promise> || std::is_same_v<T, Accept> ||
+                      std::is_same_v<T, Accepted> || std::is_same_v<T, Heartbeat>) {
+          term_or_ballot = p.ballot;
+        } else if constexpr (std::is_same_v<T, Commit>) {
+          if (type == MessageType::COMMIT) {
+            term_or_ballot = static_cast<std::uint64_t>(active_ballot_);
+          }
+        }
+      },
+      payload);
+
+  network_.send(Message{
+      .type = type,
+      .from = static_cast<NodeId>(id_),
+      .to = static_cast<NodeId>(dst),
+      .term_or_ballot = term_or_ballot,
+      .payload = std::move(payload),
+  });
+}
+
+void PaxosNode::broadcast(Payload payload) {
   for (int peer : all_nodes_) {
     send(peer, payload);
   }
@@ -403,18 +569,18 @@ PaxosCluster::PaxosCluster(int n) : network_(runtime_) {
     ids.push_back(i);
   }
 
-  network_.set_delay_fn([](const PaxosMessage& msg) {
-    const int spread = std::abs(msg.src - msg.dst);
+  network_.set_delay_fn([](const Message& msg) {
+    const int spread = std::abs(static_cast<int>(msg.from) - static_cast<int>(msg.to));
     return static_cast<std::uint64_t>(1 + (spread % 3));
   });
 
   nodes_.reserve(static_cast<std::size_t>(n));
   for (int id : ids) {
     NetworkHooks hooks{
-        .register_endpoint = [this](int node_id, Mailbox<PaxosMessage>* inbox) {
+        .register_endpoint = [this](int node_id, lp::Mailbox<Message>* inbox) {
           network_.register_endpoint(node_id, inbox);
         },
-        .send = [this](PaxosMessage msg) { network_.send(std::move(msg)); },
+        .send = [this](Message msg) { network_.send(std::move(msg)); },
         .alive = [this](int node_id) { return network_.alive(node_id); },
     };
     nodes_.emplace_back(id, ids, runtime_, std::move(hooks));
@@ -464,4 +630,3 @@ const PaxosNode& PaxosCluster::node(int node_id) const {
   return *it;
 }
 
-}  // namespace lp

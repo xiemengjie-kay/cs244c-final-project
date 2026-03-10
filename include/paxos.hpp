@@ -9,78 +9,26 @@
 #include <variant>
 #include <vector>
 
+#include "messsage.hpp"
 #include "nos.hpp"
 #include "runtime.hpp"
 
 namespace lp {
 
-struct LogEntry {
-  int slot;
-  int ballot;
-  std::string command;
-};
-
-struct Prepare {
-  int ballot;
-};
-
-struct Promise {
-  int ballot;
-  bool ok;
-  int from_id;
-  int last_committed;
-  std::vector<LogEntry> accepted_entries;
-};
-
-struct AcceptRequest {
-  int ballot;
-  int slot;
-  std::string command;
-};
-
-struct Accepted {
-  int ballot;
-  int slot;
-  bool ok;
-  int from_id;
-};
-
-struct Commit {
-  int ballot;
-  int slot;
-  std::string command;
-};
-
-struct Heartbeat {
-  int ballot;
-  int committed_up_to;
-};
-
-struct SyncRequest {
-  int from_slot;
-};
-
-struct SyncData {
-  std::vector<LogEntry> committed_entries;
-};
-
-using PaxosPayload =
-    std::variant<Prepare, Promise, AcceptRequest, Accepted, Commit, Heartbeat, SyncRequest, SyncData>;
-
-struct PaxosMessage {
-  int src;
-  int dst;
-  PaxosPayload payload;
-};
-
 struct NetworkHooks {
-  std::function<void(int node_id, Mailbox<PaxosMessage>* inbox)> register_endpoint;
-  std::function<void(PaxosMessage msg)> send;
+  std::function<void(int node_id, Mailbox<Message>* inbox)> register_endpoint;
+  std::function<void(Message msg)> send;
   std::function<bool(int node_id)> alive;
 };
 
 class PaxosNode {
  public:
+  struct RecoveredEntry {
+    int slot{0};
+    int ballot{0};
+    std::string command;
+  };
+
   PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks);
 
   void start();
@@ -116,15 +64,15 @@ class PaxosNode {
   DetachedTask election_loop();
   DetachedTask heartbeat_loop();
 
-  void on_message(PaxosMessage msg);
+  void on_message(Message msg);
   void on_prepare(int from, const Prepare& prepare);
   void on_promise(int from, const Promise& promise);
-  void on_accept_request(int from, const AcceptRequest& request);
+  void on_accept_request(int from, const Accept& request);
   void on_accepted(int from, const Accepted& accepted);
-  void on_commit(int from, const Commit& commit);
+  void on_commit(int from, const Commit& commit, int commit_ballot);
   void on_heartbeat(int from, const Heartbeat& heartbeat);
-  void on_sync_request(int from, const SyncRequest& request);
-  void on_sync_data(int from, const SyncData& data);
+  void on_sync_request(int from, const ForwardRequest& request);
+  void on_sync_data(int from, const ForwardRequest& data);
 
   void maybe_start_election();
   void become_leader(int ballot);
@@ -133,10 +81,11 @@ class PaxosNode {
   void propose_slot(int slot, std::string command);
   void try_commit_slot(int slot);
   void apply_commits();
-  std::vector<LogEntry> collect_accepted_entries() const;
+  std::vector<RecoveredEntry> collect_accepted_entries() const;
 
-  void send(int dst, PaxosPayload payload);
-  void broadcast(PaxosPayload payload);
+  void send(int dst, Payload payload);
+  void send_typed(int dst, Payload payload, MessageType type);
+  void broadcast(Payload payload);
 
   int quorum() const;
 
@@ -144,7 +93,7 @@ class PaxosNode {
   std::vector<int> all_nodes_;
   Runtime& runtime_;
   NetworkHooks network_;
-  Mailbox<PaxosMessage> inbox_;
+  Mailbox<Message> inbox_;
 
   bool is_leader_{false};
   int active_ballot_{-1};
@@ -186,8 +135,8 @@ class PaxosCluster {
 
  private:
   Runtime runtime_;
-  SimulatedNetwork<PaxosMessage> network_;
+  SimulatedNetwork<Message> network_;
   std::vector<PaxosNode> nodes_;
 };
-
 }  // namespace lp
+

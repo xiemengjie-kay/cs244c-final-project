@@ -13,10 +13,22 @@ target_include_directories(paxos_lib PUBLIC include)
 
 target_compile_options(paxos_lib PRIVATE -Wall -Wextra -Wpedantic)
 
-add_executable(paxos_demo src/main.cpp src/paxos_process.cpp)
+add_executable(paxos_demo src/main.cpp)
 target_link_libraries(paxos_demo PRIVATE paxos_lib)
+
+add_executable(paxos_node
+    src/paxos_node_main.cpp
+    src/paxos_tcp_transport.cpp
+)
+target_link_libraries(paxos_node PRIVATE paxos_lib)
 
 enable_testing()
 add_executable(paxos_tests tests/test_paxos.cpp)
 target_link_libraries(paxos_tests PRIVATE paxos_lib)
 add_test(NAME paxos_tests COMMAND paxos_tests)
+
+add_test(
+    NAME paxos_tcp_three_nodes
+    COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_paxos_tcp_three_nodes.sh" $<TARGET_FILE:paxos_node>
+)
+set_tests_properties(paxos_tcp_three_nodes PROPERTIES TIMEOUT 60)
