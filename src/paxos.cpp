@@ -370,7 +370,7 @@ void PaxosNode::maybe_start_election() {
 	// std::cout << "election round " << election_round_ << std::endl;
 
 	if (!network_.alive(id_)) {
-		std::cout << "not alive" << std::endl;
+		// std::cout << "not alive" << std::endl;
 		return;
 	}
   if (is_leader_) {
