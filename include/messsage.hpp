@@ -24,11 +24,7 @@ enum class MessageType {
 };
 
 struct Value {
-	bool isRead; // Always read everything
-	// For write:
-	uint32_t row;
-	uint32_t column_range[2]; // [inclusive-exclusive)
-	std::string val;		  // e.g. "append Alice"
+	std::string val;
 };
 
 struct ClientRequest {

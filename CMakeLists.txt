@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(paxos_lib
     src/paxos.cpp
     src/paxos_tcp_transport.cpp
+    src/interface.cpp
 )
 
 target_include_directories(paxos_lib

@@ -108,21 +108,13 @@ static bool read_u32(const std::vector<std::uint8_t>& in, std::size_t& pos, std:
 }
 
 static void write_value(std::vector<std::uint8_t>& out, const Value& value) {
-  write_i32(out, value.isRead ? 1 : 0);
-  write_u32(out, value.row);
-  write_u32(out, value.column_range[0]);
-  write_u32(out, value.column_range[1]);
   write_string(out, value.val);
 }
 
 static bool read_value(const std::vector<std::uint8_t>& in, std::size_t& pos, Value& value) {
-  int is_read = 0;
-  if (!read_i32(in, pos, is_read) || !read_u32(in, pos, value.row) ||
-      !read_u32(in, pos, value.column_range[0]) || !read_u32(in, pos, value.column_range[1]) ||
-      !read_string(in, pos, value.val)) {
+  if (!read_string(in, pos, value.val)) {
     return false;
   }
-  value.isRead = (is_read != 0);
   return true;
 }
 

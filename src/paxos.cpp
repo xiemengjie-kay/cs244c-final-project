@@ -46,10 +46,6 @@ bool read_string(const std::string& in, std::size_t& pos, std::string& s) {
 
 Value make_value(std::string text) {
   Value v{};
-  v.isRead = false;
-  v.row = 0;
-  v.column_range[0] = 0;
-  v.column_range[1] = 0;
   v.val = std::move(text);
   return v;
 }
