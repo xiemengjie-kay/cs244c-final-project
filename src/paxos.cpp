@@ -170,10 +170,13 @@ void PaxosNode::on_message(Message msg) {
         } else if constexpr (std::is_same_v<T, Promise>) {
           on_promise(src, payload);
         } else if constexpr (std::is_same_v<T, Accept>) {
+          // leader -> follower
           on_accept_request(src, payload);
         } else if constexpr (std::is_same_v<T, Accepted>) {
+          // follower -> leader
           on_accepted(src, payload);
         } else if constexpr (std::is_same_v<T, Commit>) {
+          // leader -> follower
           on_commit(src, payload, ballot);
         } else if constexpr (std::is_same_v<T, Heartbeat>) {
           on_heartbeat(src, payload);
