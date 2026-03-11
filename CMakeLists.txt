@@ -27,6 +27,13 @@ add_executable(paxos_tests tests/test_paxos.cpp)
 target_link_libraries(paxos_tests PRIVATE paxos_lib)
 add_test(NAME paxos_tests COMMAND paxos_tests)
 
+add_executable(paxos_transport_tests
+    tests/test_paxos_transport.cpp
+    src/paxos_tcp_transport.cpp
+)
+target_link_libraries(paxos_transport_tests PRIVATE paxos_lib)
+add_test(NAME paxos_transport_tests COMMAND paxos_transport_tests)
+
 add_test(
     NAME paxos_tcp_three_nodes
     COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_paxos_tcp_three_nodes.sh" $<TARGET_FILE:paxos_node>

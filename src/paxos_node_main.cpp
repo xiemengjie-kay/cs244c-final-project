@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
     lp::Runtime runtime;
     PaxosTcpTransport transport(node_id, nodes);
 
-    NetworkHooks hooks{
+    lp::NetworkHooks hooks{
         .register_endpoint = [&transport](int id, lp::Mailbox<Message>* inbox) {
           transport.register_endpoint(id, inbox);
         },
@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
         .alive = [&transport](int id) { return transport.alive(id); },
     };
 
-    PaxosNode node(node_id, all_nodes, runtime, std::move(hooks));
+    lp::PaxosNode node(node_id, all_nodes, runtime, std::move(hooks));
     node.start();
     transport.start();
 

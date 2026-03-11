@@ -432,7 +432,7 @@ PaxosTcpTransport::PaxosTcpTransport(int local_node_id,
 
 PaxosTcpTransport::~PaxosTcpTransport() { stop(); }
 
-void PaxosTcpTransport::register_endpoint(int node_id, Mailbox<Message>* inbox) {
+void PaxosTcpTransport::register_endpoint(int node_id, lp::Mailbox<Message>* inbox) {
   if (node_id == local_node_id_) {
     inbox_ = inbox;
   }

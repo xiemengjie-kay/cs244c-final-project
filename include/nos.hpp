@@ -6,6 +6,7 @@
 #include <functional>
 #include <optional>
 #include <set>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 
@@ -52,6 +53,95 @@ class Mailbox {
   Runtime& runtime_;
   std::deque<T> queue_;
   std::deque<std::coroutine_handle<>> waiters_;
+};
+
+template <typename Message>
+class SimulatedNetwork {
+ public:
+  using DelayFn = std::function<std::uint64_t(const Message&)>;
+
+  explicit SimulatedNetwork(Runtime& runtime)
+      : runtime_(runtime), delay_fn_([](const Message&) { return 1; }) {}
+
+  struct Endpoint {
+    int node_id;
+    Mailbox<Message>* inbox;
+    bool alive{true};
+  };
+
+  void register_endpoint(int node_id, Mailbox<Message>* inbox) {
+    endpoints_[node_id] = Endpoint{.node_id = node_id, .inbox = inbox, .alive = true};
+  }
+
+  void set_delay_fn(DelayFn fn) { delay_fn_ = std::move(fn); }
+
+  void crash(int node_id) {
+    auto it = endpoints_.find(node_id);
+    if (it != endpoints_.end()) {
+      it->second.alive = false;
+    }
+  }
+
+  void restore(int node_id) {
+    auto it = endpoints_.find(node_id);
+    if (it != endpoints_.end()) {
+      it->second.alive = true;
+    }
+  }
+
+  bool alive(int node_id) const {
+    auto it = endpoints_.find(node_id);
+    return it != endpoints_.end() && it->second.alive;
+  }
+
+  void partition(int a, int b) { blocked_.insert(ordered_pair(a, b)); }
+  void heal(int a, int b) { blocked_.erase(ordered_pair(a, b)); }
+  void heal_all() { blocked_.clear(); }
+
+  void send(Message msg) {
+    const int src = [&msg]() {
+      if constexpr (requires { msg.src; }) {
+        return static_cast<int>(msg.src);
+      } else {
+        return static_cast<int>(msg.from);
+      }
+    }();
+    const int dst = [&msg]() {
+      if constexpr (requires { msg.dst; }) {
+        return static_cast<int>(msg.dst);
+      } else {
+        return static_cast<int>(msg.to);
+      }
+    }();
+
+    auto src_it = endpoints_.find(src);
+    auto dst_it = endpoints_.find(dst);
+    if (src_it == endpoints_.end() || dst_it == endpoints_.end()) {
+      return;
+    }
+    if (!src_it->second.alive || !dst_it->second.alive) {
+      return;
+    }
+    if (blocked_.contains(ordered_pair(src, dst))) {
+      return;
+    }
+
+    (void)delay_fn_;
+    dst_it->second.inbox->push(std::move(msg));
+  }
+
+ private:
+  static std::pair<int, int> ordered_pair(int a, int b) {
+    if (a <= b) {
+      return {a, b};
+    }
+    return {b, a};
+  }
+
+  Runtime& runtime_;
+  DelayFn delay_fn_;
+  std::unordered_map<int, Endpoint> endpoints_;
+  std::set<std::pair<int, int>> blocked_;
 };
 
 

@@ -24,7 +24,7 @@ class PaxosTcpTransport {
   PaxosTcpTransport(int local_node_id, std::unordered_map<int, TcpNodeAddress> nodes);
   ~PaxosTcpTransport();
 
-  void register_endpoint(int node_id, Mailbox<Message>* inbox);
+  void register_endpoint(int node_id, lp::Mailbox<Message>* inbox);
   void send(Message msg);
   bool alive(int node_id) const;
 
@@ -41,7 +41,7 @@ class PaxosTcpTransport {
   int local_node_id_;
   std::unordered_map<int, TcpNodeAddress> nodes_;
 
-  Mailbox<Message>* inbox_{nullptr};
+  lp::Mailbox<Message>* inbox_{nullptr};
 
   std::atomic<bool> running_{false};
   std::atomic<bool> crashed_{false};

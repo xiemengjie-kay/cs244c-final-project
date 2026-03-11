@@ -9,6 +9,8 @@
 #include <cstring>
 #include <type_traits>
 
+namespace lp {
+
 void write_i32(std::string& out, int value) {
   std::uint32_t net = htonl(static_cast<std::uint32_t>(value));
   out.append(reinterpret_cast<const char*>(&net), sizeof(net));
@@ -630,3 +632,4 @@ const PaxosNode& PaxosCluster::node(int node_id) const {
   return *it;
 }
 
+}  // namespace lp
