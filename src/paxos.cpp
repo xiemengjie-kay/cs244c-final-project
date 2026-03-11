@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <type_traits>
+#include <iostream>
 
 void write_i32(std::string& out, int value) {
   std::uint32_t net = htonl(static_cast<std::uint32_t>(value));
@@ -114,8 +115,10 @@ PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, 
       network_(std::move(hooks)),
       inbox_(runtime),
       election_timeout_ticks_(14 + static_cast<std::uint64_t>(node_id * 3)) {
+  std::cout << "Paxos Node " << node_id << "initialized" << std::endl;
   network_.register_endpoint(id_, &inbox_);
   last_leader_contact_ = runtime_.tick();
+  std::cout << "Last Leader Contact " << last_leader_contact_ << std::endl;
 }
 
 void PaxosNode::start() {
@@ -135,28 +138,29 @@ void PaxosNode::submit_client_command(std::string command) {
 }
 
 DetachedTask PaxosNode::message_loop() {
-  while (true) {
-    auto msg = co_await inbox_.receive();
-    on_message(std::move(msg));
-  }
+	std::cout << "Message Loop starts" << std::endl;
+	while (true) {
+		auto msg = co_await inbox_.receive();
+		on_message(std::move(msg));
+	}
 }
 
 DetachedTask PaxosNode::election_loop() {
-  while (true) {
-    co_await SleepFor{runtime_, 3};
-    maybe_start_election();
-  }
+	while (true) {
+		co_await SleepFor{runtime_, 3};
+		maybe_start_election();
+	}
 }
 
 DetachedTask PaxosNode::heartbeat_loop() {
-  while (true) {
-    co_await SleepFor{runtime_, 4};
-    if (is_leader_ && network_.alive(id_)) {
-      broadcast(Heartbeat{
-          .ballot = static_cast<std::uint64_t>(active_ballot_),
-          .committed_up_to = static_cast<std::uint64_t>(commit_index_),
-      });
-    }
+	while (true) {
+		co_await SleepFor{runtime_, 2};
+		if (is_leader_ && network_.alive(id_)) {
+			broadcast(Heartbeat{
+				.ballot = static_cast<std::uint64_t>(active_ballot_),
+				.committed_up_to = static_cast<std::uint64_t>(commit_index_),
+			});
+		}
   }
 }
 
@@ -196,6 +200,7 @@ void PaxosNode::on_prepare(int from, const Prepare& prepare) {
     ok = true;
     step_down_if_stale(ballot);
     last_leader_contact_ = runtime_.tick();
+    // std::cout << "on_prepare: Last Leader Contact " << last_leader_contact_ << std::endl;
   }
 
   Promise promise{};
@@ -204,6 +209,9 @@ void PaxosNode::on_prepare(int from, const Prepare& prepare) {
   if (ok) {
     promise.accepted_value = make_value(encode_entries_blob(collect_accepted_entries()));
   }
+  // std::cout << "on_prepare: Sending promise with ballot " << promise.ballot << " accepted_ballot " << promise.accepted_ballot
+  //           << " accepted_value " << promise.accepted_value.has_value()
+  //           << std::endl;
   send(from, promise);
 }
 
@@ -223,12 +231,14 @@ void PaxosNode::on_promise(int from, const Promise& promise) {
     }
     return;
   }
-
+  // std::cout << "Received promise from " << from << " with ballot " << ballot << " accepted_ballot " << promise.accepted_ballot
+  //           << " accepted_value " << promise.accepted_value.has_value() << std::endl;
   prep.promises[from] = promise;
   if (static_cast<int>(prep.promises.size()) < quorum()) {
     return;
   }
-
+  // std::cout << "Got " << prep.promises.size() << " promises for ballot " << ballot << std::endl;
+  // std::cout << "Quorum size is " << quorum() << std::endl;
   prep.completed = true;
   become_leader(ballot);
 }
@@ -298,12 +308,15 @@ void PaxosNode::on_commit(int /*from*/, const Commit& commit, int commit_ballot)
 
 void PaxosNode::on_heartbeat(int from, const Heartbeat& heartbeat) {
   const int hb_ballot = static_cast<int>(heartbeat.ballot);
+  // std::cout << "Received heartbeat from " << from << " with ballot " << hb_ballot << std::endl;
+  // std::cout << "Current promised ballot is " << promised_ballot_ << std::endl;
   if (hb_ballot >= promised_ballot_) {
     promised_ballot_ = hb_ballot;
     if (from != id_) {
       step_down_if_stale(hb_ballot);
     }
     last_leader_contact_ = runtime_.tick();
+    // std::cout << "on_heartbeat:Last Leader Contact " << last_leader_contact_ << std::endl;
   }
 
   if (static_cast<int>(heartbeat.committed_up_to) > commit_index_) {
@@ -354,20 +367,30 @@ void PaxosNode::on_sync_data(int /*from*/, const ForwardRequest& data) {
 }
 
 void PaxosNode::maybe_start_election() {
-  if (!network_.alive(id_)) {
-    return;
-  }
+	// std::cout << "election round " << election_round_ << std::endl;
+
+	if (!network_.alive(id_)) {
+		std::cout << "not alive" << std::endl;
+		return;
+	}
   if (is_leader_) {
+    // std::cout << "I'm leader " << election_round_ << std::endl; 
     return;
   }
   if (runtime_.tick() - last_leader_contact_ < election_timeout_ticks_) {
-    return;
+	  // std::cout << "election time out not yet "
+		// 		<< runtime_.tick() << " " << last_leader_contact_ << " " << election_timeout_ticks_
+		// 		<< std::endl;
+
+	  return;
   }
 
+  // std::cout << "election round starts " << election_round_ << std::endl; 
   ++election_round_;
   int ballot = election_round_ * 100 + id_;
   if (ballot <= promised_ballot_) {
-    ballot = promised_ballot_ + 1;
+    ballot = (promised_ballot_ / 100 + 1) * 100 + id_;
+    // ballot = promised_ballot_ + 1;
   }
 
   promised_ballot_ = ballot;
@@ -378,6 +401,8 @@ void PaxosNode::maybe_start_election() {
   self_promise.ballot = static_cast<std::uint64_t>(ballot);
   self_promise.accepted_ballot = static_cast<std::uint64_t>(commit_index_);
   self_promise.accepted_value = make_value(encode_entries_blob(collect_accepted_entries()));
+  // std::cout << "Sending prepare message with ballot number " << ballot << std::endl;
+  // std::cout << "id is " << id_ << std::endl;
   prepare_state_->promises[id_] = std::move(self_promise);
 
   broadcast(Prepare{.ballot = static_cast<std::uint64_t>(ballot)});
@@ -385,6 +410,11 @@ void PaxosNode::maybe_start_election() {
 
 void PaxosNode::become_leader(int ballot) {
   is_leader_ = true;
+  broadcast(Heartbeat{
+				.ballot = static_cast<std::uint64_t>(active_ballot_),
+				.committed_up_to = static_cast<std::uint64_t>(commit_index_),
+			});
+  // std::cout << "Node " << id_ << " becomes leader with ballot " << ballot << std::endl;
   active_ballot_ = ballot;
   promised_ballot_ = std::max(promised_ballot_, ballot);
   last_leader_contact_ = runtime_.tick();
@@ -428,6 +458,7 @@ void PaxosNode::step_down_if_stale(int ballot) {
   if (ballot <= active_ballot_) {
     return;
   }
+  // std::cout << "Node " << id_ << " steps down from ballot " << active_ballot_ << " to ballot " << ballot << std::endl;
   active_ballot_ = ballot;
   is_leader_ = false;
 }

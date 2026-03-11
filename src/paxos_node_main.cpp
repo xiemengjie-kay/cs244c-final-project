@@ -98,6 +98,8 @@ int main(int argc, char** argv) {
 
   try {
     auto nodes = parse_nodes(nodes_spec);
+    std::cout << "Starting " << node_id << " in a cluster of " << nodes.size() << std::endl;
+
     if (!nodes.contains(node_id)) {
       throw std::runtime_error("--id does not exist in --nodes");
     }
@@ -122,6 +124,8 @@ int main(int argc, char** argv) {
     };
 
     PaxosNode node(node_id, all_nodes, runtime, std::move(hooks));
+    std::cout << "Starting " << node_id << " in a cluster of " << all_nodes.size() << std::endl;
+    
     node.start();
     transport.start();
 
@@ -145,7 +149,7 @@ int main(int argc, char** argv) {
     int last_commit = 0;
     while (!stop) {
       transport.pump_inbound();
-      runtime.run_steps(100);
+      runtime.run_steps(1);
 
       auto handle_command = [&](std::string cmd) {
         if (cmd == "/status") {
