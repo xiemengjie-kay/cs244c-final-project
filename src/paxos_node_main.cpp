@@ -75,6 +75,9 @@ int main(int argc, char** argv) {
     std::queue<std::string> input_queue;
     bool stop = false;
 
+    // application code starts
+
+    // catch terminal input in a separate thread
     std::thread input_thread([&]() {
       std::string line;
       while (std::getline(std::cin, line)) {
@@ -117,6 +120,7 @@ int main(int argc, char** argv) {
         }
 
         if (!node.is_leader()) {
+          // TODO: forward to leader
           std::cout << "reject: not leader\n";
           return;
         }
@@ -124,6 +128,7 @@ int main(int argc, char** argv) {
         std::cout << "accepted by leader\n";
       };
 
+      // serve terminal commands
       {
         std::lock_guard<std::mutex> lock(input_mu);
         while (!input_queue.empty()) {
@@ -133,13 +138,14 @@ int main(int argc, char** argv) {
         }
       }
 
+      // handle committed entries
       if (node.commit_index() > last_commit) {
         const auto& applied = node.applied_commands();
         for (int i = last_commit; i < node.commit_index(); ++i) {
           std::string command  = applied[static_cast<std::size_t>(i)];
           EditOperation op;
           bool parsed = parse_command(command, op);
-
+          // TODO: turn this into actual commands instead of just printing
           std::cout << parsed << " " << (int)op.type << " " << op.position << " " << op.text << " " << op.length << "\n";
           const std::string committed =
               "node " + std::to_string(node_id) + " committed slot " + std::to_string(i + 1) +
