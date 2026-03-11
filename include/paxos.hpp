@@ -13,8 +13,6 @@
 #include "nos.hpp"
 #include "runtime.hpp"
 
-namespace lp {
-
 struct NetworkHooks {
   std::function<void(int node_id, Mailbox<Message>* inbox)> register_endpoint;
   std::function<void(Message msg)> send;
@@ -113,30 +111,4 @@ class PaxosNode {
   std::optional<PrepareState> prepare_state_;
   std::unordered_map<int, SlotProposal> proposals_;
 };
-
-class PaxosCluster {
- public:
-  explicit PaxosCluster(int n);
-
-  void start();
-  void run_ticks(std::size_t max_steps = 100000);
-
-  bool submit_to_leader(const std::string& command);
-  bool submit_to_node(int node_id, const std::string& command);
-
-  void crash(int node_id) { network_.crash(node_id); }
-  void restore(int node_id) { network_.restore(node_id); }
-  void partition(int a, int b) { network_.partition(a, b); }
-  void heal(int a, int b) { network_.heal(a, b); }
-  void heal_all() { network_.heal_all(); }
-
-  std::vector<int> leader_ids() const;
-  const PaxosNode& node(int node_id) const;
-
- private:
-  Runtime runtime_;
-  SimulatedNetwork<Message> network_;
-  std::vector<PaxosNode> nodes_;
-};
-}  // namespace lp
 

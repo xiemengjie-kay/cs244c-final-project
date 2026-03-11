@@ -107,7 +107,7 @@ MessageType payload_type(const Payload& payload) {
       payload);
 }
 
-PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, lp::Runtime& runtime, NetworkHooks hooks)
+PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks)
     : id_(node_id),
       all_nodes_(std::move(all_nodes)),
       runtime_(runtime),
@@ -134,23 +134,23 @@ void PaxosNode::submit_client_command(std::string command) {
   }
 }
 
-lp::DetachedTask PaxosNode::message_loop() {
+DetachedTask PaxosNode::message_loop() {
   while (true) {
     auto msg = co_await inbox_.receive();
     on_message(std::move(msg));
   }
 }
 
-lp::DetachedTask PaxosNode::election_loop() {
+DetachedTask PaxosNode::election_loop() {
   while (true) {
-    co_await lp::SleepFor{runtime_, 3};
+    co_await SleepFor{runtime_, 3};
     maybe_start_election();
   }
 }
 
-lp::DetachedTask PaxosNode::heartbeat_loop() {
+DetachedTask PaxosNode::heartbeat_loop() {
   while (true) {
-    co_await lp::SleepFor{runtime_, 4};
+    co_await SleepFor{runtime_, 4};
     if (is_leader_ && network_.alive(id_)) {
       broadcast(Heartbeat{
           .ballot = static_cast<std::uint64_t>(active_ballot_),
@@ -561,72 +561,3 @@ void PaxosNode::broadcast(Payload payload) {
 }
 
 int PaxosNode::quorum() const { return static_cast<int>(all_nodes_.size() / 2) + 1; }
-
-PaxosCluster::PaxosCluster(int n) : network_(runtime_) {
-  std::vector<int> ids;
-  ids.reserve(n);
-  for (int i = 1; i <= n; ++i) {
-    ids.push_back(i);
-  }
-
-  network_.set_delay_fn([](const Message& msg) {
-    const int spread = std::abs(static_cast<int>(msg.from) - static_cast<int>(msg.to));
-    return static_cast<std::uint64_t>(1 + (spread % 3));
-  });
-
-  nodes_.reserve(static_cast<std::size_t>(n));
-  for (int id : ids) {
-    NetworkHooks hooks{
-        .register_endpoint = [this](int node_id, lp::Mailbox<Message>* inbox) {
-          network_.register_endpoint(node_id, inbox);
-        },
-        .send = [this](Message msg) { network_.send(std::move(msg)); },
-        .alive = [this](int node_id) { return network_.alive(node_id); },
-    };
-    nodes_.emplace_back(id, ids, runtime_, std::move(hooks));
-  }
-}
-
-void PaxosCluster::start() {
-  for (auto& node : nodes_) {
-    node.start();
-  }
-}
-
-void PaxosCluster::run_ticks(std::size_t max_steps) { runtime_.run_steps(max_steps); }
-
-bool PaxosCluster::submit_to_leader(const std::string& command) {
-  for (auto& node : nodes_) {
-    if (node.is_leader() && network_.alive(node.id())) {
-      node.submit_client_command(command);
-      return true;
-    }
-  }
-  return false;
-}
-
-bool PaxosCluster::submit_to_node(int node_id, const std::string& command) {
-  for (auto& node : nodes_) {
-    if (node.id() == node_id && network_.alive(node.id())) {
-      node.submit_client_command(command);
-      return true;
-    }
-  }
-  return false;
-}
-
-std::vector<int> PaxosCluster::leader_ids() const {
-  std::vector<int> leaders;
-  for (const auto& node : nodes_) {
-    if (node.is_leader() && network_.alive(node.id())) {
-      leaders.push_back(node.id());
-    }
-  }
-  return leaders;
-}
-
-const PaxosNode& PaxosCluster::node(int node_id) const {
-  auto it = std::find_if(nodes_.begin(), nodes_.end(), [node_id](const PaxosNode& n) { return n.id() == node_id; });
-  return *it;
-}
-

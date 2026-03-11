@@ -11,8 +11,6 @@
 
 #include "runtime.hpp"
 
-namespace lp {
-
 template <typename T>
 class Mailbox {
  public:
@@ -53,6 +51,3 @@ class Mailbox {
   std::deque<T> queue_;
   std::deque<std::coroutine_handle<>> waiters_;
 };
-
-
-}  // namespace lp

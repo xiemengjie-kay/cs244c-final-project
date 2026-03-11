@@ -110,11 +110,11 @@ int main(int argc, char** argv) {
     }
     std::sort(all_nodes.begin(), all_nodes.end());
 
-    lp::Runtime runtime;
+    Runtime runtime;
     PaxosTcpTransport transport(node_id, nodes);
 
     NetworkHooks hooks{
-        .register_endpoint = [&transport](int id, lp::Mailbox<Message>* inbox) {
+        .register_endpoint = [&transport](int id, Mailbox<Message>* inbox) {
           transport.register_endpoint(id, inbox);
         },
         .send = [&transport](Message msg) { transport.send(std::move(msg)); },

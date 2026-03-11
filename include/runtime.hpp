@@ -9,8 +9,6 @@
 #include <utility>
 #include <vector>
 
-namespace lp {
-
 class Runtime {
  public:
   using Handle = std::coroutine_handle<>;
@@ -141,4 +139,3 @@ struct SleepFor {
   void await_resume() const noexcept {}
 };
 
-}  // namespace lp
