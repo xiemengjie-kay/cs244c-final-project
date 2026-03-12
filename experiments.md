@@ -5,5 +5,9 @@
 
 Repeat everything with UI
 
+### Latency: change the length of the message
+
+### how many messages do I need back and forth to commit 1 slot
+
 
 
