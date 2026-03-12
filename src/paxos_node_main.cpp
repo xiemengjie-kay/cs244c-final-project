@@ -78,6 +78,7 @@ int main(int argc, char** argv) {
     // application code starts
 
     // catch terminal input in a separate thread
+    // TODO: turn this into catching events from browser
     std::thread input_thread([&]() {
       std::string line;
       while (std::getline(std::cin, line)) {
@@ -118,12 +119,6 @@ int main(int argc, char** argv) {
           stop = true;
           return;
         }
-
-        // if (!node.is_leader()) {
-        //   // TODO: forward to leader
-        //   std::cout << "reject: not leader\n";
-        //   return;
-        // }
         node.submit_client_command(std::move(cmd));
       };
 
@@ -144,8 +139,10 @@ int main(int argc, char** argv) {
           std::string command  = applied[static_cast<std::size_t>(i)];
           EditOperation op;
           bool parsed = parse_command(command, op);
-          // TODO: turn this into actual commands instead of just printing
-          std::cout << parsed << " " << (int)op.type << " " << op.position << " " << op.text << " " << op.length << "\n";
+          if (parsed) {
+            // TODO: turn this into actual commands on browser instead of just printing
+            std::cout << (int)op.type << " " << op.position << " " << op.text << " " << op.length << "\n";
+          }
           const std::string committed =
               "node " + std::to_string(node_id) + " committed slot " + std::to_string(i + 1) +
               ": " + applied[static_cast<std::size_t>(i)];

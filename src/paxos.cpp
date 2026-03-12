@@ -133,7 +133,7 @@ void PaxosNode::submit_client_command(std::string command) {
   } else {
     ForwardRequest req;
     req.request.value.val = std::move(command);
-	  send(active_ballot_ % 100, req);
+    send(leader_ballot() % 100, req);
   }
 }
 
