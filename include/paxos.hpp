@@ -71,7 +71,7 @@ class PaxosNode {
   void on_heartbeat(int from, const Heartbeat& heartbeat);
   void on_sync_request(int from, const ForwardRequest& request);
   void on_sync_data(int from, const ForwardRequest& data);
-
+  void on_forward_request(int from, const ForwardRequest& req);
   void maybe_start_election();
   void become_leader(int ballot);
   void step_down_if_stale(int ballot);

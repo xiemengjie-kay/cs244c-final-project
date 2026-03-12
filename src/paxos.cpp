@@ -127,9 +127,13 @@ void PaxosNode::start() {
 }
 
 void PaxosNode::submit_client_command(std::string command) {
-  pending_client_commands_.push(std::move(command));
   if (is_leader_) {
+    pending_client_commands_.push(std::move(command));
     propose_pending();
+  } else {
+    ForwardRequest req;
+    req.request.value.val = std::move(command);
+	  send(active_ballot_ % 100, req);
   }
 }
 
@@ -185,6 +189,8 @@ void PaxosNode::on_message(Message msg) {
             on_sync_request(src, payload);
           } else if (msg_type == MessageType::SYNC_DATA) {
             on_sync_data(src, payload);
+          } else if (msg_type == MessageType::FORWARD_REQUEST) {
+            on_forward_request(src, payload);
           }
         }
       },
@@ -365,6 +371,11 @@ void PaxosNode::on_sync_data(int /*from*/, const ForwardRequest& data) {
   apply_commits();
 }
 
+void PaxosNode::on_forward_request(int , const ForwardRequest& req) {
+  // std::cout << "Forward Request received as " << req.request.value.val << std::endl;
+	submit_client_command(req.request.value.val);
+}
+
 void PaxosNode::maybe_start_election() {
 	// std::cout << "election round " << election_round_ << std::endl;
 
@@ -409,10 +420,6 @@ void PaxosNode::maybe_start_election() {
 
 void PaxosNode::become_leader(int ballot) {
   is_leader_ = true;
-  broadcast(Heartbeat{
-				.ballot = static_cast<std::uint64_t>(active_ballot_),
-				.committed_up_to = static_cast<std::uint64_t>(commit_index_),
-			});
   // std::cout << "Node " << id_ << " becomes leader with ballot " << ballot << std::endl;
   active_ballot_ = ballot;
   promised_ballot_ = std::max(promised_ballot_, ballot);

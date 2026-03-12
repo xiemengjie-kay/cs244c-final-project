@@ -119,13 +119,12 @@ int main(int argc, char** argv) {
           return;
         }
 
-        if (!node.is_leader()) {
-          // TODO: forward to leader
-          std::cout << "reject: not leader\n";
-          return;
-        }
+        // if (!node.is_leader()) {
+        //   // TODO: forward to leader
+        //   std::cout << "reject: not leader\n";
+        //   return;
+        // }
         node.submit_client_command(std::move(cmd));
-        std::cout << "accepted by leader\n";
       };
 
       // serve terminal commands
