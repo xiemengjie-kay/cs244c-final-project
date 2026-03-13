@@ -27,7 +27,8 @@ class PaxosNode {
     std::string command;
   };
 
-  PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks);
+  PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks,
+            bool eval_trace_enabled = false);
 
   void start();
   void submit_client_command(std::string command);
@@ -84,6 +85,7 @@ class PaxosNode {
   void send(int dst, Payload payload);
   void send_typed(int dst, Payload payload, MessageType type);
   void broadcast(Payload payload);
+  void emit_eval_trace(const char* phase, int slot, const std::string& command) const;
 
   int quorum() const;
 
@@ -110,5 +112,5 @@ class PaxosNode {
 
   std::optional<PrepareState> prepare_state_;
   std::unordered_map<int, SlotProposal> proposals_;
+  bool eval_trace_enabled_{false};
 };
-

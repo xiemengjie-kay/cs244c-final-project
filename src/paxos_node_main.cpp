@@ -20,6 +20,7 @@
 int main(int argc, char** argv) {
   int node_id = -1;
   std::string nodes_spec;
+  bool eval_trace = false;
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -30,6 +31,8 @@ int main(int argc, char** argv) {
     } else if (arg == "--help") {
       usage(argv[0]);
       return 0;
+    } else if (arg == "--eval-trace") {
+      eval_trace = true;
     }
   }
 
@@ -65,8 +68,11 @@ int main(int argc, char** argv) {
         .alive = [&transport](int id) { return transport.alive(id); },
     };
 
-    PaxosNode node(node_id, all_nodes, runtime, std::move(hooks));
+    PaxosNode node(node_id, all_nodes, runtime, std::move(hooks), eval_trace);
     std::cout << "Starting " << node_id << " in a cluster of " << all_nodes.size() << std::endl;
+    if (eval_trace) {
+      std::cout << "eval trace enabled\n";
+    }
     
     node.start();
     transport.start();

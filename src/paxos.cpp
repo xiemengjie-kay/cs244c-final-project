@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -104,13 +105,15 @@ MessageType payload_type(const Payload& payload) {
       payload);
 }
 
-PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks)
+PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks,
+                     bool eval_trace_enabled)
     : id_(node_id),
       all_nodes_(std::move(all_nodes)),
       runtime_(runtime),
       network_(std::move(hooks)),
       inbox_(runtime),
-      election_timeout_ticks_(14 + static_cast<std::uint64_t>(node_id * 3)) {
+      election_timeout_ticks_(14 + static_cast<std::uint64_t>(node_id * 3)),
+      eval_trace_enabled_(eval_trace_enabled) {
   std::cout << "Paxos Node " << node_id << "initialized" << std::endl;
   network_.register_endpoint(id_, &inbox_);
   last_leader_contact_ = runtime_.tick();
@@ -504,6 +507,7 @@ void PaxosNode::propose_slot(int slot, std::string command) {
   req.ballot = static_cast<std::uint64_t>(active_ballot_);
   req.slot = static_cast<std::uint64_t>(slot);
   req.value = make_value(command);
+  emit_eval_trace("accept_send", slot, command);
   broadcast(req);
   try_commit_slot(slot);
 }
@@ -532,6 +536,7 @@ void PaxosNode::try_commit_slot(int slot) {
   Commit commit{};
   commit.slot = static_cast<std::uint64_t>(slot);
   commit.value = make_value(proposal.command);
+  emit_eval_trace("commit_send", slot, proposal.command);
   broadcast(commit);
   apply_commits();
 
@@ -595,6 +600,17 @@ void PaxosNode::broadcast(Payload payload) {
   for (int peer : all_nodes_) {
     send(peer, payload);
   }
+}
+
+void PaxosNode::emit_eval_trace(const char* phase, int slot, const std::string& command) const {
+  if (!eval_trace_enabled_) {
+    return;
+  }
+  const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::steady_clock::now().time_since_epoch())
+                          .count();
+  std::cout << "node=" << id_ << " phase=" << phase << " slot=" << slot << " t_ns=" << now_ns
+            << " cmd=" << command << std::endl;
 }
 
 int PaxosNode::quorum() const { return static_cast<int>(all_nodes_.size() / 2) + 1; }
