@@ -57,7 +57,7 @@ std::unordered_map<int, TcpNodeAddress> parse_nodes(const std::string& spec) {
 
 void usage(const char* prog) {
 	std::cout << "Usage: " << prog
-			  << " --id <node_id> --nodes <id:host:port,...>\n\n"
+			  << " --id <node_id> --nodes <id:host:port,...> [--eval-trace]\n\n"
 			  << "Examples:\n"
 			  << "  " << prog << " --id 1 --nodes 1:15001,2:15002,3:15003\n"
 			  << "  " << prog

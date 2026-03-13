@@ -1,0 +1,18 @@
+End-to-End Client->Leader Commit Latency
+=======================================
+
+Metric: t(leader commit_send observed) - t(client submit)
+Client: this eval script writes requests to node stdin.
+
+Source: build/paxos_node
+Cluster sizes: 3
+Message lengths (bytes): 256
+Submit modes: round_robin
+Total samples: 100
+Successful samples: 100
+Timeout/fail samples: 0 (0.00%)
+
+mean: 128.413 ms
+p50:  119.613 ms
+p95:  167.444 ms
+p99:  168.540 ms
