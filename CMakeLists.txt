@@ -12,6 +12,7 @@ add_library(paxos_lib
     src/paxos.cpp
     src/paxos_tcp_transport.cpp
     src/interface.cpp
+    src/editor_server.cpp
 )
 
 target_include_directories(paxos_lib

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Paxos Editor</title>
+<style>
+body {
+  font-family: monospace;
+  margin: 20px;
+}
+
+textarea {
+  width: 600px;
+  height: 300px;
+  font-family: monospace;
+  font-size: 16px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Paxos Text Editor</h2>
+
+<textarea id="editor"></textarea>
+
+<script>
+
+const editor = document.getElementById("editor");
+editor.focus();
+const ws = new WebSocket("ws://localhost:8080");
+
+ws.onopen = () => {
+  console.log("connected");
+};
+
+ws.onmessage = (event) => {
+  console.log("received msg:", event.data);
+  applyOperation(event.data);
+};
+
+
+editor.addEventListener("beforeinput", (e) => {
+
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+
+  if (e.inputType === "insertText") {
+    e.preventDefault();
+    ws.send(`INSERT ${start} ${e.data}`);
+  }
+
+  if (e.inputType === "deleteContentBackward") {
+    e.preventDefault();
+
+    if (start !== end) {
+      ws.send(`DELETE ${start} ${end-start}`);
+    } else if (start > 0) {
+      ws.send(`DELETE ${start-1} 1`);
+    }
+  }
+
+  if (e.inputType === "deleteContentForward") {
+    e.preventDefault();
+
+    if (start !== end) {
+      ws.send(`DELETE ${start} ${end-start}`);
+    } else {
+      ws.send(`DELETE ${start} 1`);
+    }
+  }
+});
+
+function applyOperation(msg) {
+
+  let cursor = editor.selectionStart;
+
+  const parts = msg.split(" ");
+  const type = parts[0];
+  const value = editor.value;
+
+  if (type === "INSERT") {
+
+    const pos = parseInt(parts[1]);
+    const text = parts.slice(2).join(" ");
+
+    editor.value =
+      value.slice(0, pos) +
+      text +
+      value.slice(pos);
+
+    if (pos <= cursor) {
+      cursor += text.length;
+    }
+  }
+
+  if (type === "DELETE") {
+
+    const pos = parseInt(parts[1]);
+    const len = parseInt(parts[2]);
+
+    editor.value =
+      value.slice(0, pos) +
+      value.slice(pos + len);
+
+    if (pos < cursor) {
+      cursor -= Math.min(len, cursor - pos);
+    }
+  }
+
+  editor.selectionStart = cursor;
+  editor.selectionEnd = cursor;
+}
+
+
+</script>
+
+</body>
+</html>

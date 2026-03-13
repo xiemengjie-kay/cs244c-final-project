@@ -16,6 +16,7 @@
 #include "paxos.hpp"
 #include "paxos_tcp_transport.hpp"
 #include "interface.hpp"
+#include "editor_server.hpp"
 
 int main(int argc, char** argv) {
   int node_id = -1;
@@ -77,8 +78,12 @@ int main(int argc, char** argv) {
 
     // application code starts
 
+    // catch events from browser
+    
+    EditorServer editor(input_queue, input_mu);
+    editor.start(9002);
+
     // catch terminal input in a separate thread
-    // TODO: turn this into catching events from browser
     std::thread input_thread([&]() {
       std::string line;
       while (std::getline(std::cin, line)) {
@@ -139,8 +144,10 @@ int main(int argc, char** argv) {
           std::string command  = applied[static_cast<std::size_t>(i)];
           EditOperation op;
           bool parsed = parse_command(command, op);
+          editor.broadcast(command);
           if (parsed) {
             // TODO: turn this into actual commands on browser instead of just printing
+            editor.broadcast("hello-from-node-" + std::to_string(node_id));
             std::cout << (int)op.type << " " << op.position << " " << op.text << " " << op.length << "\n";
           }
           const std::string committed =

@@ -5,6 +5,25 @@ Paxos Consensus Protocol using coroutines introduced in C++20. The editor suppor
 
 Idea: localized ctrl+z, as compared to Live Share
 
+## Dependencies
+```bash
+# Make sure Node.js is installed
+node -v
+npm -v
+
+# Create a project folder
+mkdir websocket_server
+cd websocket_server
+npm init -y
+
+# Install ws library
+npm install ws
+```
+
+npm install ws
+
+node bridge.js
+
 ## Build and Run
 
 From repo root:
@@ -14,11 +33,6 @@ cmake -S . -B build
 cmake --build build -j4
 ```
 
-Run tests:
-
-```bash
-ctest --test-dir build --output-on-failure
-```
 
 Run local in-memory demo:
 
@@ -28,17 +42,20 @@ Run local in-memory demo:
 
 Run one Paxos node per process (3 terminals):
 
-Terminal 1:
+Node 1 - terminal 1:
 ```bash
 ./build/paxos_node --id 1 --nodes 1:15001,2:15002,3:15003
 ```
 
-Terminal 2:
+Node 1 - terminal 2:
 ```bash
-./build/paxos_node --id 2 --nodes 1:15001,2:15002,3:15003
+node bridge.js
 ```
 
-Terminal 3:
+Node 1 - browser window
 ```bash
-./build/paxos_node --id 3 --nodes 1:15001,2:15002,3:15003
+open test.html from your default browser
 ```
+
+Nodes 2 and 3: do the same thing, except changing --id to 2 and 3, respectively
+
