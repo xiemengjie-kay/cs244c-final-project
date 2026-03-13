@@ -188,10 +188,12 @@ def write_svg(
     timeout_by_length: Dict[int, int],
 ) -> None:
     width = 1320
-    height = 650
-    footer_y = 620
     cdf_box = (70, 110, 760, 390)
-    stat_box = (870, 110, 390, 390)
+    stat_box = (930, 140, 350, 350)
+    cdf_x0, cdf_y0, cdf_w, cdf_h = cdf_box
+    st_x0, st_y0, st_w, st_h = stat_box
+    bottom_content = max(cdf_y0 + cdf_h + 46, st_y0 + st_h + 40)
+    height = int(bottom_content + 14)
 
     all_vals: List[float] = []
     for l in lengths:
@@ -205,9 +207,6 @@ def write_svg(
         cdf_max_x = 1.0
     if cdf_max_x <= cdf_min_x:
         cdf_max_x = cdf_min_x + 1.0
-    cdf_x0, cdf_y0, cdf_w, cdf_h = cdf_box
-    st_x0, st_y0, st_w, st_h = stat_box
-
     svg: List[str] = []
     svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">')
     svg.append('<rect x="0" y="0" width="100%" height="100%" fill="white"/>')
@@ -279,6 +278,12 @@ def write_svg(
     # Stats panel: p50/p95 vs message length + timeout rate text
     svg.append(f'<rect x="{st_x0}" y="{st_y0}" width="{st_w}" height="{st_h}" fill="none" stroke="#333"/>')
     svg.append(f'<text x="{st_x0}" y="{st_y0 - 12}" font-size="15" font-family="Arial">p50/p95 vs message length</text>')
+    svg.append(
+        f'<text x="{st_x0 + st_w/2 - 60}" y="{st_y0 + st_h + 30}" font-size="11" font-family="Arial">message length (bytes)</text>'
+    )
+    svg.append(
+        f'<text x="{st_x0 - 50}" y="{st_y0 + st_h/2}" font-size="11" font-family="Arial" transform="rotate(-90 {st_x0 - 50},{st_y0 + st_h/2})">latency (ms)</text>'
+    )
 
     p50s = [summarize(series_by_length.get(l, []))["p50"] for l in lengths]
     p95s = [summarize(series_by_length.get(l, []))["p95"] for l in lengths]
@@ -323,8 +328,6 @@ def write_svg(
     svg.append(f'<text x="{lgx+30}" y="{lgy+4}" font-size="11" font-family="Arial">p50</text>')
     svg.append(f'<line x1="{lgx+70}" y1="{lgy}" x2="{lgx+94}" y2="{lgy}" stroke="#d62728" stroke-width="2"/>')
     svg.append(f'<text x="{lgx+100}" y="{lgy+4}" font-size="11" font-family="Arial">p95</text>')
-
-    # svg.append('<text x="70" y="{0}" font-size="12" font-family="Arial">Timeout points are NOT dropped from accounting: they are excluded from latency percentile math but included in timeout rate and CSV.</text>'.format(footer_y))
 
     svg.append("</svg>")
     out.write_text("\n".join(svg), encoding="utf-8")

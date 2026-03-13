@@ -2,7 +2,7 @@ Exact Leader Accept->Commit Send Latency (Length Sweep)
 ====================================================
 
 Metric: t(commit_send) - t(accept_send), using internal steady_clock trace.
-Source: build/paxos_node
+Source: csv:eval/eval_accept_to_commit/accept_to_commit_samples.csv
 Cluster size (participating nodes): 3
 Submit mode: round_robin
 Round robin submit order: 1 -> 2 -> ... -> N
