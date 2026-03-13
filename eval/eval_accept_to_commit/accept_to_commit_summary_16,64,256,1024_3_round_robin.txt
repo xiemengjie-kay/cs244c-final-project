@@ -2,7 +2,7 @@ Exact Leader Accept->Commit Send Latency (Length Sweep)
 ====================================================
 
 Metric: t(commit_send) - t(accept_send), using internal steady_clock trace.
-Source: csv:eval/eval_accept_to_commit/accept_to_commit_samples.csv
+Source: build/paxos_node
 Cluster size (participating nodes): 3
 Submit mode: round_robin
 Round robin submit order: 1 -> 2 -> ... -> N
@@ -11,34 +11,34 @@ Message lengths (payload bytes): 16,64,256,1024
 Length 16 bytes:
   successful samples: 100/100
   timeout/fail rate:  0.00%
-  mean: 102.482 ms
-  p50:  104.424 ms
-  p95:  113.289 ms
-  p99:  115.457 ms
+  mean: 104.727 ms
+  p50:  103.660 ms
+  p95:  115.854 ms
+  p99:  122.155 ms
 
 Length 64 bytes:
-  successful samples: 100/100
-  timeout/fail rate:  0.00%
-  mean: 103.732 ms
-  p50:  104.014 ms
-  p95:  113.460 ms
-  p99:  116.876 ms
+  successful samples: 99/100
+  timeout/fail rate:  1.00%
+  mean: 103.194 ms
+  p50:  103.485 ms
+  p95:  110.785 ms
+  p99:  115.869 ms
 
 Length 256 bytes:
   successful samples: 100/100
   timeout/fail rate:  0.00%
-  mean: 102.839 ms
-  p50:  103.512 ms
-  p95:  110.398 ms
-  p99:  113.374 ms
+  mean: 103.653 ms
+  p50:  103.589 ms
+  p95:  110.199 ms
+  p99:  115.070 ms
 
 Length 1024 bytes:
   successful samples: 100/100
   timeout/fail rate:  0.00%
-  mean: 102.768 ms
-  p50:  103.376 ms
-  p95:  114.977 ms
-  p99:  117.054 ms
+  mean: 103.404 ms
+  p50:  103.320 ms
+  p95:  113.347 ms
+  p99:  115.075 ms
 
 Timeout handling policy:
   - Timeout points are kept in CSV with status=timeout.

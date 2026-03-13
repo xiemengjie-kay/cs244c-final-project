@@ -255,7 +255,7 @@ def write_svg(
     # CDF legend in top-left of plotting area.
     legend_x = cdf_x0 + 12
     legend_y = cdf_y0 + 14
-    legend_w = min(cdf_w - 24, 430)
+    legend_w = min(cdf_w - 24, 250)
     legend_h = 22 + len(lengths) * 18 + 8
     svg.append(
         f'<rect x="{legend_x-6}" y="{legend_y-14}" width="{legend_w}" height="{legend_h}" fill="white" fill-opacity="0.88" stroke="#999"/>'
@@ -532,9 +532,9 @@ def main() -> int:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = out_dir / "accept_to_commit_samples.csv"
-    summary_path = out_dir / "accept_to_commit_summary.txt"
-    fig_path = out_dir / "accept_to_commit_figure.svg"
+    csv_path = out_dir / ("accept_to_commit_samples_" + str(args.message_lengths) + "_" + str(args.cluster_size) + "_" + str(args.submit_mode) + ".csv")
+    summary_path = out_dir / ("accept_to_commit_summary_" + str(args.message_lengths) + "_" + str(args.cluster_size) + "_" + str(args.submit_mode) + ".txt")
+    fig_path = out_dir / ("accept_to_commit_figure_" + str(args.message_lengths) + "_" + str(args.cluster_size) + "_" + str(args.submit_mode) + ".svg")
 
     all_rows: List[Dict[str, object]] = []
 
