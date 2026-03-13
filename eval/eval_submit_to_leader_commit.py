@@ -24,6 +24,8 @@ from typing import Dict, List, Optional, Tuple
 STATUS_RE = re.compile(r"node\s+(\d+)\s+leader=(yes|no)\s+ballot=([-\d]+)\s+commit_index=(\d+)")
 COMMIT_RE = re.compile(r"node\s+(\d+)\s+committed\s+slot\s+(\d+):\s+(.*)$")
 EVAL_COMMIT_RE = re.compile(r"node=(\d+)\s+phase=commit_send\s+slot=(\d+)\s+t_ns=(\d+)\s+cmd=(.*)$")
+CMD_IDX_RE = re.compile(r"_cmd(\d+)_")
+PALETTE = ["#1f77b4", "#d62728", "#2ca02c", "#ff7f0e", "#9467bd", "#8c564b"]
 
 
 @dataclass
@@ -171,6 +173,35 @@ def make_command(length_bytes: int, seq: int, submit_node: int) -> str:
     return prefix + payload
 
 
+def parse_int_csv(spec: str, arg_name: str, min_value: int = 1) -> List[int]:
+    vals: List[int] = []
+    for tok in spec.split(","):
+        t = tok.strip()
+        if not t:
+            continue
+        v = int(t)
+        if v < min_value:
+            raise ValueError(f"{arg_name} values must be >= {min_value}")
+        vals.append(v)
+    if not vals:
+        raise ValueError(f"{arg_name} produced empty set")
+    return vals
+
+
+def command_index_of(row: Dict[str, object]) -> Optional[int]:
+    raw = str(row.get("command_index", "")).strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    cmd = str(row.get("command", ""))
+    m = CMD_IDX_RE.search(cmd)
+    if m:
+        return int(m.group(1))
+    return None
+
+
 def run_experiment(
     binary: Path,
     base_port: int,
@@ -260,6 +291,7 @@ def run_experiment(
                         "cluster_size": cluster_size,
                         "message_length_bytes": message_length,
                         "submit_mode": submit_mode,
+                        "command_index": i,
                         "submit_node": submit_node,
                         "leader_at_submit": leader_at_submit,
                         "submit_ts": f"{t_submit:.9f}",
@@ -279,9 +311,10 @@ def run_experiment(
                 {
                     "command": cmd,
                     "cluster_size": cluster_size,
-                    "message_length_bytes": message_length,
-                    "submit_mode": submit_mode,
-                    "submit_node": submit_node,
+                        "message_length_bytes": message_length,
+                        "submit_mode": submit_mode,
+                        "command_index": i,
+                        "submit_node": submit_node,
                     "leader_at_submit": leader_at_submit,
                     "submit_ts": f"{t_submit:.9f}",
                     "leader_commit_ts": f"{leader_commit_ts:.9f}",
@@ -307,9 +340,9 @@ def load_rows_from_csv(csv_path: Path) -> List[Dict[str, object]]:
 
 def write_summary(summary_path: Path, source: str, rows: List[Dict[str, object]]) -> None:
     ok_lat = [float(r["latency_ms"]) for r in rows if r.get("status") == "ok" and str(r.get("latency_ms", "")).strip()]
-    st = summarize(ok_lat)
+    st_all = summarize(ok_lat)
     total = len(rows)
-    ok = int(st["count"])
+    ok = int(st_all["count"])
     timeout = total - ok
     timeout_rate = (timeout / total * 100.0) if total else 0.0
 
@@ -329,31 +362,75 @@ def write_summary(summary_path: Path, source: str, rows: List[Dict[str, object]]
         f.write(f"Total samples: {total}\n")
         f.write(f"Successful samples: {ok}\n")
         f.write(f"Timeout/fail samples: {timeout} ({timeout_rate:.2f}%)\n\n")
-        f.write(f"mean: {st['mean']:.3f} ms\n")
-        f.write(f"p50:  {st['p50']:.3f} ms\n")
-        f.write(f"p95:  {st['p95']:.3f} ms\n")
-        f.write(f"p99:  {st['p99']:.3f} ms\n")
+        f.write("All samples:\n")
+        f.write(f"  mean: {st_all['mean']:.3f} ms\n")
+        f.write(f"  p50:  {st_all['p50']:.3f} ms\n")
+        f.write(f"  p95:  {st_all['p95']:.3f} ms\n")
+        f.write(f"  p99:  {st_all['p99']:.3f} ms\n\n")
+
+        for n in cluster_sizes:
+            n_rows = [r for r in rows if int(r["cluster_size"]) == n]
+            n_lat = [float(r["latency_ms"]) for r in n_rows if r.get("status") == "ok" and str(r.get("latency_ms", "")).strip()]
+            n_stats = summarize(n_lat)
+            n_total = len(n_rows)
+            n_ok = int(n_stats["count"])
+            n_timeout = n_total - n_ok
+            n_timeout_rate = (n_timeout / n_total * 100.0) if n_total else 0.0
+            f.write(f"Cluster size {n}:\n")
+            f.write(f"  successful samples: {n_ok}/{n_total}\n")
+            f.write(f"  timeout/fail rate:  {n_timeout_rate:.2f}%\n")
+            f.write(f"  mean: {n_stats['mean']:.3f} ms\n")
+            f.write(f"  p50:  {n_stats['p50']:.3f} ms\n")
+            f.write(f"  p95:  {n_stats['p95']:.3f} ms\n")
+            f.write(f"  p99:  {n_stats['p99']:.3f} ms\n\n")
 
 
 def write_svg(fig_path: Path, rows: List[Dict[str, object]]) -> None:
-    ok_rows = [r for r in rows if r.get("status") == "ok" and str(r.get("latency_ms", "")).strip()]
-    lat_ms = [float(r["latency_ms"]) for r in ok_rows]
-    st = summarize(lat_ms)
+    cluster_sizes = sorted({int(r["cluster_size"]) for r in rows if str(r.get("cluster_size", "")).strip()})
+    msg_lengths = sorted({int(r["message_length_bytes"]) for r in rows if str(r.get("message_length_bytes", "")).strip()})
+    submit_modes = sorted({str(r["submit_mode"]) for r in rows if str(r.get("submit_mode", "")).strip()})
+    submit_mode_label = submit_modes[0] if len(submit_modes) == 1 else "mixed"
+    msg_label = msg_lengths[0] if len(msg_lengths) == 1 else "mixed"
+
+    cdf_by_cluster: Dict[int, List[float]] = {}
+    total_by_cluster: Dict[int, int] = {n: 0 for n in cluster_sizes}
+    timeout_by_cluster: Dict[int, int] = {n: 0 for n in cluster_sizes}
+    p50_by_cluster: Dict[int, float] = {}
+    p95_by_cluster: Dict[int, float] = {}
+
+    for n in cluster_sizes:
+        n_rows = [r for r in rows if int(r["cluster_size"]) == n]
+        total_by_cluster[n] = len(n_rows)
+        cdf_vals: List[float] = []
+        for r in n_rows:
+            if r.get("status") != "ok":
+                timeout_by_cluster[n] += 1
+                continue
+            lat_raw = str(r.get("latency_ms", "")).strip()
+            if not lat_raw:
+                timeout_by_cluster[n] += 1
+                continue
+            cdf_vals.append(float(lat_raw))
+        cdf_by_cluster[n] = cdf_vals
+        p50_by_cluster[n] = percentile(cdf_vals, 50) if cdf_vals else float("nan")
+        p95_by_cluster[n] = percentile(cdf_vals, 95) if cdf_vals else float("nan")
+
+    all_ok = [v for vals in cdf_by_cluster.values() for v in vals]
+    st_all = summarize(all_ok)
     total = len(rows)
-    ok = int(st["count"])
+    ok = int(st_all["count"])
     timeout = total - ok
 
-    width, height = 1140, 540
-    left = (70, 90, 470, 320)
-    right = (620, 90, 450, 320)
-
+    width, height = 1200, 560
+    left = (70, 90, 500, 340)
+    right = (640, 90, 500, 340)
     x0, y0, w0, h0 = left
     x1, y1, w1, h1 = right
 
-    max_y = max([1.0] + lat_ms) * 1.15
-    cdf = cdf_points(lat_ms)
-    cdf_min_x = min(lat_ms) - 20.0 if lat_ms else -20.0
-    cdf_max_x = max([1.0] + lat_ms) * 1.05
+    stats_vals = [v for v in list(p50_by_cluster.values()) + list(p95_by_cluster.values()) if not math.isnan(v)]
+    max_y = max([1.0] + stats_vals) * 1.15
+    cdf_min_x = min(all_ok) - 20.0 if all_ok else -20.0
+    cdf_max_x = max([1.0] + all_ok) * 1.05
     if cdf_max_x <= cdf_min_x:
         cdf_max_x = cdf_min_x + 1.0
 
@@ -361,57 +438,109 @@ def write_svg(fig_path: Path, rows: List[Dict[str, object]]) -> None:
     svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">')
     svg.append('<rect x="0" y="0" width="100%" height="100%" fill="white"/>')
     svg.append('<text x="30" y="34" font-size="24" font-family="Arial">End-to-End Latency: Client Submit -> Leader Commit</text>')
+    svg.append(
+        f'<text x="30" y="58" font-size="13" font-family="Arial">cluster_sizes={",".join(str(v) for v in cluster_sizes)}, message_length={msg_label}, submit_mode={submit_mode_label}</text>'
+    )
 
-    # left: per-command
+    # Left: CDF.
     svg.append(f'<rect x="{x0}" y="{y0}" width="{w0}" height="{h0}" fill="none" stroke="#333"/>')
     for i in range(6):
         gy = y0 + h0 - (i / 5) * h0
-        val = (i / 5) * max_y
+        val = i / 5
         svg.append(f'<line x1="{x0}" y1="{gy:.1f}" x2="{x0+w0}" y2="{gy:.1f}" stroke="#eee"/>')
-        svg.append(f'<text x="{x0-40}" y="{gy+4:.1f}" font-size="10" font-family="Arial">{val:.1f}</text>')
-    n = len(lat_ms)
-    if n > 1:
-        pts = []
-        for i, v in enumerate(lat_ms):
-            px = x0 + (i / (n - 1)) * w0
-            py = y0 + h0 - (v / max_y) * h0
-            pts.append((px, py))
-        d = " ".join(("M" if i == 0 else "L") + f" {p[0]:.2f} {p[1]:.2f}" for i, p in enumerate(pts))
-        svg.append(f'<path d="{d}" fill="none" stroke="#1f77b4" stroke-width="2"/>')
-    svg.append(f'<text x="{x0}" y="{y0-12}" font-size="14" font-family="Arial">Per-command latency (successful only)</text>')
-    svg.append(f'<text x="{x0 + w0/2 - 42}" y="{y0+h0+30}" font-size="12" font-family="Arial">command index</text>')
-    svg.append(
-        f'<text x="{x0-55}" y="{y0 + h0/2}" font-size="12" font-family="Arial" transform="rotate(-90 {x0-55},{y0 + h0/2})">latency (ms)</text>'
-    )
+        svg.append(f'<text x="{x0-28}" y="{gy+4:.1f}" font-size="10" font-family="Arial">{val:.1f}</text>')
+    for i in range(6):
+        gx = x0 + (i / 5) * w0
+        idx_val = cdf_min_x + (i / 5) * (cdf_max_x - cdf_min_x)
+        svg.append(f'<line x1="{gx:.1f}" y1="{y0}" x2="{gx:.1f}" y2="{y0+h0}" stroke="#f3f3f3"/>')
+        svg.append(f'<text x="{gx-14:.1f}" y="{y0+h0+18}" font-size="10" font-family="Arial">{idx_val:.1f}</text>')
 
-    # right: CDF
+    sx = w0 / (cdf_max_x - cdf_min_x)
+    sy = h0
+    for i, n in enumerate(cluster_sizes):
+        vals = cdf_by_cluster.get(n, [])
+        cdf = cdf_points(vals)
+        if len(cdf) < 2:
+            continue
+        color = PALETTE[i % len(PALETTE)]
+        coords = []
+        for x, y in cdf:
+            px = x0 + (x - cdf_min_x) * sx
+            py = y0 + h0 - y * sy
+            coords.append((px, py))
+        d = " ".join(("M" if j == 0 else "L") + f" {p[0]:.2f} {p[1]:.2f}" for j, p in enumerate(coords))
+        svg.append(f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2"/>')
+
+    svg.append(f'<text x="{x0}" y="{y0-12}" font-size="14" font-family="Arial">CDF</text>')
+    svg.append(f'<text x="{x0 + w0/2 - 34}" y="{y0+h0+30}" font-size="12" font-family="Arial">latency (ms)</text>')
+    svg.append(f'<text x="{x0-56}" y="{y0 + h0/2}" font-size="12" font-family="Arial" transform="rotate(-90 {x0-56},{y0 + h0/2})">CDF</text>')
+
+    # Right: p50/p95 vs cluster size.
     svg.append(f'<rect x="{x1}" y="{y1}" width="{w1}" height="{h1}" fill="none" stroke="#333"/>')
     for i in range(6):
         gy = y1 + h1 - (i / 5) * h1
+        val = (i / 5) * max_y
         svg.append(f'<line x1="{x1}" y1="{gy:.1f}" x2="{x1+w1}" y2="{gy:.1f}" stroke="#eee"/>')
-        svg.append(f'<text x="{x1-28}" y="{gy+4:.1f}" font-size="10" font-family="Arial">{i/5:.1f}</text>')
-    for i in range(6):
-        gx = x1 + (i / 5) * w1
-        val = cdf_min_x + (i / 5) * (cdf_max_x - cdf_min_x)
-        svg.append(f'<line x1="{gx:.1f}" y1="{y1}" x2="{gx:.1f}" y2="{y1+h1}" stroke="#eee"/>')
-        svg.append(f'<text x="{gx-14:.1f}" y="{y1+h1+18}" font-size="10" font-family="Arial">{val:.1f}</text>')
+        svg.append(f'<text x="{x1-40}" y="{gy+4:.1f}" font-size="10" font-family="Arial">{val:.1f}</text>')
 
-    if cdf:
-        sx = w1 / (cdf_max_x - cdf_min_x)
-        sy = h1
-        coords = []
-        for x, y in cdf:
-            px = x1 + (x - cdf_min_x) * sx
-            py = y1 + h1 - y * sy
-            coords.append((px, py))
-        d = " ".join(("M" if i == 0 else "L") + f" {p[0]:.2f} {p[1]:.2f}" for i, p in enumerate(coords))
-        svg.append(f'<path d="{d}" fill="none" stroke="#111" stroke-width="2"/>')
+    n_clusters = len(cluster_sizes)
+    x_points: List[float] = []
+    for i, n in enumerate(cluster_sizes):
+        gx = x1 + (0 if n_clusters == 1 else (i / (n_clusters - 1)) * w1)
+        x_points.append(gx)
+        svg.append(f'<line x1="{gx:.1f}" y1="{y1}" x2="{gx:.1f}" y2="{y1+h1}" stroke="#f3f3f3"/>')
+        svg.append(f'<text x="{gx-10:.1f}" y="{y1+h1+18}" font-size="10" font-family="Arial">{n}</text>')
 
-    svg.append(f'<text x="{x1}" y="{y1-12}" font-size="14" font-family="Arial">CDF</text>')
-    svg.append(f'<text x="{x1 + w1/2 - 34}" y="{y1+h1+30}" font-size="12" font-family="Arial">latency (ms)</text>')
+    def draw_stat_line(values: List[float], color: str) -> None:
+        pts: List[Tuple[float, float]] = []
+        for i, v in enumerate(values):
+            if math.isnan(v):
+                continue
+            px = x_points[i]
+            py = y1 + h1 - (v / max_y) * h1
+            pts.append((px, py))
+        if len(pts) >= 2:
+            d = " ".join(("M" if j == 0 else "L") + f" {p[0]:.2f} {p[1]:.2f}" for j, p in enumerate(pts))
+            svg.append(f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2"/>')
+        for px, py in pts:
+            svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="2.8" fill="{color}"/>')
+
+    p50s = [p50_by_cluster.get(n, float("nan")) for n in cluster_sizes]
+    p95s = [p95_by_cluster.get(n, float("nan")) for n in cluster_sizes]
+    draw_stat_line(p50s, "#1f77b4")
+    draw_stat_line(p95s, "#d62728")
+
+    svg.append(f'<text x="{x1}" y="{y1-12}" font-size="14" font-family="Arial">p50/p95 vs cluster size</text>')
+    svg.append(f'<text x="{x1 + w1/2 - 52}" y="{y1+h1+30}" font-size="12" font-family="Arial">cluster size (nodes)</text>')
+    svg.append(f'<text x="{x1-58}" y="{y1 + h1/2}" font-size="12" font-family="Arial" transform="rotate(-90 {x1-58},{y1 + h1/2})">latency (ms)</text>')
+
+    # Legend in CDF panel.
+    lg_x = x0 + 12
+    lg_y = y0 + 14
+    lg_w = 260
+    lg_h = 22 + len(cluster_sizes) * 18 + 8
+    svg.append(f'<rect x="{lg_x-6}" y="{lg_y-14}" width="{lg_w}" height="{lg_h}" fill="white" fill-opacity="0.88" stroke="#999"/>')
+    svg.append(f'<text x="{lg_x}" y="{lg_y}" font-size="11" font-family="Arial">cluster / successful / timeout</text>')
+    for i, n in enumerate(cluster_sizes):
+        color = PALETTE[i % len(PALETTE)]
+        n_total = total_by_cluster.get(n, 0)
+        n_ok = len(cdf_by_cluster.get(n, []))
+        n_timeout = timeout_by_cluster.get(n, 0)
+        n_timeout_rate = (n_timeout / n_total * 100.0) if n_total else 0.0
+        yy = lg_y + (i + 1) * 18
+        svg.append(f'<line x1="{lg_x}" y1="{yy-4}" x2="{lg_x+20}" y2="{yy-4}" stroke="{color}" stroke-width="2"/>')
+        svg.append(f'<text x="{lg_x+26}" y="{yy}" font-size="11" font-family="Arial">N={n} n={n_ok}/{n_total} timeout={n_timeout_rate:.1f}%</text>')
+
+    # p50/p95 mini legend in right panel.
+    rg_x = x1 + 12
+    rg_y = y1 + 14
+    svg.append(f'<line x1="{rg_x}" y1="{rg_y}" x2="{rg_x+24}" y2="{rg_y}" stroke="#1f77b4" stroke-width="2"/>')
+    svg.append(f'<text x="{rg_x+30}" y="{rg_y+4}" font-size="11" font-family="Arial">p50</text>')
+    svg.append(f'<line x1="{rg_x+70}" y1="{rg_y}" x2="{rg_x+94}" y2="{rg_y}" stroke="#d62728" stroke-width="2"/>')
+    svg.append(f'<text x="{rg_x+100}" y="{rg_y+4}" font-size="11" font-family="Arial">p95</text>')
 
     svg.append(
-        f'<text x="70" y="460" font-size="12" font-family="Arial">n_ok={ok}/{total} timeout={timeout} mean={st["mean"]:.3f}ms p50={st["p50"]:.3f}ms p95={st["p95"]:.3f}ms p99={st["p99"]:.3f}ms</text>'
+        f'<text x="70" y="500" font-size="12" font-family="Arial">overall n_ok={ok}/{total} timeout={timeout} mean={st_all["mean"]:.3f}ms p50={st_all["p50"]:.3f}ms p95={st_all["p95"]:.3f}ms p99={st_all["p99"]:.3f}ms</text>'
     )
     svg.append("</svg>")
     fig_path.write_text("\n".join(svg), encoding="utf-8")
@@ -421,7 +550,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description="End-to-end client submit -> leader commit evaluator")
     p.add_argument("--binary", default="./build/paxos_node")
     p.add_argument("--base-port", type=int, default=18000)
-    p.add_argument("--cluster-size", type=int, default=3)
+    p.add_argument("--cluster-size", default="3", help="single value or CSV, e.g. 3 or 3,5,11")
     p.add_argument("--commands", type=int, default=100)
     p.add_argument("--timeout-ms", type=int, default=15000)
     p.add_argument("--message-length", type=int, default=256)
@@ -455,23 +584,24 @@ def main() -> int:
         if not binary.exists():
             print(f"binary not found: {binary}", file=sys.stderr)
             return 2
-        if args.cluster_size < 3:
-            print("cluster-size must be >= 3", file=sys.stderr)
-            return 2
         if args.message_length < 1:
             print("message-length must be >= 1", file=sys.stderr)
             return 2
 
-        rows = run_experiment(
-            binary=binary,
-            base_port=args.base_port,
-            cluster_size=args.cluster_size,
-            commands=args.commands,
-            timeout_ms=args.timeout_ms,
-            message_length=args.message_length,
-            submit_mode=args.submit_mode,
-            fixed_submit_node=args.fixed_submit_node,
-        )
+        cluster_sizes = sorted(parse_int_csv(args.cluster_size, "--cluster-size", min_value=3))
+        rows = []
+        for sweep_idx, cluster_size in enumerate(cluster_sizes):
+            run_rows = run_experiment(
+                binary=binary,
+                base_port=args.base_port + sweep_idx * 200,
+                cluster_size=cluster_size,
+                commands=args.commands,
+                timeout_ms=args.timeout_ms,
+                message_length=args.message_length,
+                submit_mode=args.submit_mode,
+                fixed_submit_node=args.fixed_submit_node,
+            )
+            rows.extend(run_rows)
 
         with csv_path.open("w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(
@@ -481,6 +611,7 @@ def main() -> int:
                     "cluster_size",
                     "message_length_bytes",
                     "submit_mode",
+                    "command_index",
                     "submit_node",
                     "leader_at_submit",
                     "submit_ts",
