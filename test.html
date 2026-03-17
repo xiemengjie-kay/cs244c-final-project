@@ -29,6 +29,11 @@ const editor = document.getElementById("editor");
 editor.focus();
 const params = new URLSearchParams(window.location.search);
 const port = params.get("port") || "8080";
+const clientId =
+  params.get("clientId") || Math.random().toString(36).slice(2);
+console.log("clientId:", clientId);
+let requestId = 0;
+const seen = new Set();
 
 const ws = new WebSocket(`ws://localhost:${port}`);
 
@@ -51,18 +56,18 @@ function encode(text) {
 editor.addEventListener("beforeinput", (e) => {
 
   const start = logicalCursor;
-  const end = editor.selectionEnd;
+  const end = logicalCursor + (editor.selectionEnd - editor.selectionStart);
 
   if (e.inputType === "insertLineBreak") {
     e.preventDefault();
     logicalCursor += 1;
-    ws.send(`INSERT ${start} \\n`);
+    ws.send(`${clientId} ${requestId++} INSERT ${start} \\n`);
   }
 
   if (e.inputType === "insertText") {
     e.preventDefault();
     logicalCursor += e.data.length;
-    ws.send(`INSERT ${start} ${encode(e.data)}`);
+    ws.send(`${clientId} ${requestId++} INSERT ${start} ${encode(e.data)}`);
   }
   
   if (e.inputType === "insertFromPaste") {
@@ -72,10 +77,10 @@ editor.addEventListener("beforeinput", (e) => {
     if (!text) return;
     if (start !== end) {
       logicalCursor -= (end - start);
-      ws.send(`DELETE ${start} ${end-start}`);
+      ws.send(`${clientId} ${requestId++} DELETE ${start} ${end-start}`);
     }
     logicalCursor += text.length;
-    ws.send(`INSERT ${start} ${text}`);
+    ws.send(`${clientId} ${requestId++} INSERT ${start} ${text}`);
   }
 
   if (e.inputType === "deleteContentBackward") {
@@ -83,10 +88,10 @@ editor.addEventListener("beforeinput", (e) => {
 
     if (start !== end) {
       logicalCursor -= (end - start);
-      ws.send(`DELETE ${start} ${end-start}`);
+      ws.send(`${clientId} ${requestId++} DELETE ${start} ${end-start}`);
     } else if (start > 0) {
       logicalCursor -= 1;
-      ws.send(`DELETE ${start-1} 1`);
+      ws.send(`${clientId} ${requestId++} DELETE ${start-1} 1`);
     }
   }
 
@@ -95,10 +100,10 @@ editor.addEventListener("beforeinput", (e) => {
 
     if (start !== end) {
       logicalCursor -= (end - start);
-      ws.send(`DELETE ${start} ${end-start}`);
+      ws.send(`${clientId} ${requestId++} DELETE ${start} ${end-start}`);
     } else {
       logicalCursor -= 1;
-      ws.send(`DELETE ${start} 1`);
+      ws.send(`${clientId} ${requestId++} DELETE ${start} 1`);
     }
   }
 });
@@ -108,13 +113,19 @@ function applyOperation(msg) {
   let cursor = editor.selectionStart;
 
   const parts = msg.split(" ");
-  const type = parts[0];
+
+  const sender = parts[0];
+  const reqId = parts[1]; // (you may use this later)
+  const type = parts[2];
   const value = editor.value;
+  const key = `${sender}-${reqId}`;
+  if (seen.has(key)) return;
+  seen.add(key);
 
   if (type === "INSERT") {
 
-    const pos = parseInt(parts[1]);
-    const text = parts.slice(2).join(" ");
+    const pos = parseInt(parts[3]);
+    const text = parts.slice(4).join(" ");
 
     editor.value =
       value.slice(0, pos) +
@@ -125,15 +136,15 @@ function applyOperation(msg) {
       cursor += text.length;
     }
 
-    if (pos <= logicalCursor) {
+    if (sender !== clientId && pos <= logicalCursor) {
       logicalCursor += text.length;
     }
   }
 
   if (type === "DELETE") {
 
-    const pos = parseInt(parts[1]);
-    const len = parseInt(parts[2]);
+    const pos = parseInt(parts[3]);
+    const len = parseInt(parts[4]);
 
     editor.value =
       value.slice(0, pos) +
@@ -143,7 +154,7 @@ function applyOperation(msg) {
       cursor -= Math.min(len, cursor - pos);
     }
 
-    if (pos < logicalCursor) {
+    if (sender !== clientId && pos < logicalCursor) {
       logicalCursor -= Math.min(len, logicalCursor - pos);
     }
   }
