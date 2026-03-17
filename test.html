@@ -35,6 +35,18 @@ console.log("clientId:", clientId);
 let requestId = 0;
 const seen = new Set();
 
+const pending = new Map(); // key -> { msg, timestamp }
+function sendOp(msg, sender, reqId) {
+  const key = `${sender}-${reqId}`;
+
+  pending.set(key, {
+    msg,
+    timestamp: Date.now()
+  });
+
+  ws.send(msg);
+}
+
 const ws = new WebSocket(`ws://localhost:${port}`);
 
 let logicalCursor = 0;
@@ -71,13 +83,17 @@ editor.addEventListener("beforeinput", (e) => {
   if (e.inputType === "insertLineBreak") {
     e.preventDefault();
     logicalCursor += 1;
-    ws.send(`${clientId} ${requestId++} INSERT ${start} \\n`);
+    const id = requestId++;
+    const msg = `${clientId} ${id} INSERT ${start} \\n`;
+    sendOp(msg, clientId, id);
   }
 
   if (e.inputType === "insertText") {
     e.preventDefault();
     logicalCursor += e.data.length;
-    ws.send(`${clientId} ${requestId++} INSERT ${start} ${encode(e.data)}`);
+    const id = requestId++;
+    const msg = `${clientId} ${id} INSERT ${start} ${encode(e.data)}`;
+    sendOp(msg, clientId, id);
   }
   
   if (e.inputType === "insertFromPaste") {
@@ -87,10 +103,14 @@ editor.addEventListener("beforeinput", (e) => {
     if (!text) return;
     if (start !== end) {
       logicalCursor -= (end - start);
-      ws.send(`${clientId} ${requestId++} DELETE ${start} ${end-start}`);
+      const id = requestId++;
+      const msg = `${clientId} ${id} DELETE ${start} ${end-start}`;
+      sendOp(msg, clientId, id);
     }
     logicalCursor += text.length;
-    ws.send(`${clientId} ${requestId++} INSERT ${start} ${text}`);
+    const id = requestId++;
+    const msg = `${clientId} ${id} INSERT ${start} ${text}`;
+    sendOp(msg, clientId, id);
   }
 
   if (e.inputType === "deleteContentBackward") {
@@ -98,10 +118,14 @@ editor.addEventListener("beforeinput", (e) => {
 
     if (start !== end) {
       logicalCursor -= (end - start);
-      ws.send(`${clientId} ${requestId++} DELETE ${start} ${end-start}`);
+      const id = requestId++;
+      const msg = `${clientId} ${id} DELETE ${start} ${end-start}`;
+      sendOp(msg, clientId, id);
     } else if (start > 0) {
       logicalCursor -= 1;
-      ws.send(`${clientId} ${requestId++} DELETE ${start-1} 1`);
+      const id = requestId++;
+      const msg = `${clientId} ${id} DELETE ${start-1} 1`;
+      sendOp(msg, clientId, id);
     }
   }
 
@@ -110,10 +134,14 @@ editor.addEventListener("beforeinput", (e) => {
 
     if (start !== end) {
       logicalCursor -= (end - start);
-      ws.send(`${clientId} ${requestId++} DELETE ${start} ${end-start}`);
+      const id = requestId++;
+      const msg = `${clientId} ${id} DELETE ${start} ${end-start}`;
+      sendOp(msg, clientId, id);
     } else {
       logicalCursor -= 1;
-      ws.send(`${clientId} ${requestId++} DELETE ${start} 1`);
+      const id = requestId++;
+      const msg = `${clientId} ${id} DELETE ${start} 1`;
+      sendOp(msg, clientId, id);
     }
   }
 });
@@ -131,6 +159,7 @@ function applyOperation(msg) {
   const key = `${sender}-${reqId}`;
   if (seen.has(key)) return;
   seen.add(key);
+  pending.delete(key);
 
   if (type === "INSERT") {
 
@@ -176,6 +205,18 @@ function applyOperation(msg) {
   console.log("updated logical cursor:", logicalCursor);
   console.log("updated cursor:", cursor);
 }
+
+setInterval(() => {
+  const now = Date.now();
+
+  for (const [key, op] of pending.entries()) {
+    if (now - op.timestamp > 1000) { // 1 second timeout
+      console.log("retrying:", key);
+      ws.send(op.msg);
+      op.timestamp = now;
+    }
+  }
+}, 500);
 
 
 </script>
