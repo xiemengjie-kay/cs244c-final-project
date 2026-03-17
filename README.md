@@ -20,10 +20,6 @@ npm init -y
 npm install ws
 ```
 
-npm install ws
-
-node bridge.js
-
 ## Build and Run
 
 From repo root:
@@ -40,22 +36,26 @@ Run local in-memory demo:
 ./build/paxos_demo
 ```
 
-Run one Paxos node per process (3 terminals):
+Run one Paxos node per process (3 * 2 terminals + 3 browser windows):
 
-Node 1 - terminal 1:
+Terminal 1:
 ```bash
-./build/paxos_node --id 1 --nodes 1:15001,2:15002,3:15003
+./build/paxos_node --id 1 --nodes 1:15001,2:15002,3:15003 --tcp-port 9001
+./build/paxos_node --id 2 --nodes 1:15001,2:15002,3:15003 --tcp-port 9002
+./build/paxos_node --id 3 --nodes 1:15001,2:15002,3:15003 --tcp-port 9003
 ```
 
-Node 1 - terminal 2:
+Terminal 2:
 ```bash
-node bridge.js
+node bridge.js [TCP_PORT] [WS_PORT]
+node bridge.js 9001 8080
+node bridge.js 9002 8081
+node bridge.js 9003 8082
 ```
 
-Node 1 - browser window
+Browser window
 ```bash
-open test.html from your default browser
+open test.html from your default browser?port=[WS_PORT]
+?port=8081
+?port=8082
 ```
-
-Nodes 2 and 3: do the same thing, except changing --id to 2 and 3, respectively
-

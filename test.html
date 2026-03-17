@@ -27,7 +27,10 @@ textarea {
 
 const editor = document.getElementById("editor");
 editor.focus();
-const ws = new WebSocket("ws://localhost:8080");
+const params = new URLSearchParams(window.location.search);
+const port = params.get("port") || "8080";
+
+const ws = new WebSocket(`ws://localhost:${port}`);
 
 ws.onopen = () => {
   console.log("connected");
@@ -38,15 +41,36 @@ ws.onmessage = (event) => {
   applyOperation(event.data);
 };
 
+function encode(text) {
+  return text.replace(/\n/g, "\\n");
+}
 
 editor.addEventListener("beforeinput", (e) => {
 
   const start = editor.selectionStart;
   const end = editor.selectionEnd;
 
+  if (e.inputType === "insertLineBreak") {
+    e.preventDefault();
+    ws.send(`INSERT ${start} \\n`);
+  }
+
   if (e.inputType === "insertText") {
     e.preventDefault();
-    ws.send(`INSERT ${start} ${e.data}`);
+    ws.send(`INSERT ${start} ${encode(e.data)}`);
+  }
+  
+  if (e.inputType === "insertFromPaste") {
+    e.preventDefault();
+
+    const text = encode((e.clipboardData || window.clipboardData).getData("text"));
+    if (!text) return;
+
+    if (start !== end) {
+      ws.send(`DELETE ${start} ${end-start}`);
+    }
+
+    ws.send(`INSERT ${start} ${text}`);
   }
 
   if (e.inputType === "deleteContentBackward") {
@@ -71,7 +95,7 @@ editor.addEventListener("beforeinput", (e) => {
 });
 
 function applyOperation(msg) {
-
+  msg = msg.replace(/\\n/g, "\n");
   let cursor = editor.selectionStart;
 
   const parts = msg.split(" ");

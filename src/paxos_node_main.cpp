@@ -21,6 +21,7 @@
 int main(int argc, char** argv) {
   int node_id = -1;
   std::string nodes_spec;
+  int tcp_port = 9002;
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -31,6 +32,8 @@ int main(int argc, char** argv) {
     } else if (arg == "--help") {
       usage(argv[0]);
       return 0;
+    } else if (arg == "--tcp-port" && i + 1 < argc) {
+      tcp_port = std::stoi(argv[++i]);
     }
   }
 
@@ -81,7 +84,7 @@ int main(int argc, char** argv) {
     // catch events from browser
     
     EditorServer editor(input_queue, input_mu);
-    editor.start(9002);
+    editor.start(tcp_port);
 
     // catch terminal input in a separate thread
     std::thread input_thread([&]() {
