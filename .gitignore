@@ -1,2 +1,7 @@
 build/
 */__pycache__/
+*csv
+*.svg
+*.txt
+*.pdf
+*.png

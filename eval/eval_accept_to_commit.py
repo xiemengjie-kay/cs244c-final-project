@@ -166,26 +166,31 @@ def make_command(length_bytes: int, seq: int, submit_node: int) -> str:
     return prefix + payload
 
 
-def parse_lengths(spec: str) -> List[int]:
-    vals = []
+def parse_int_csv(spec: str, arg_name: str, min_value: int = 1) -> List[int]:
+    vals: List[int] = []
     for tok in spec.split(","):
         t = tok.strip()
         if not t:
             continue
-        vals.append(int(t))
+        v = int(t)
+        if v < min_value:
+            raise ValueError(f"{arg_name} values must be >= {min_value}")
+        vals.append(v)
     if not vals:
-        raise ValueError("--message-lengths produced empty set")
+        raise ValueError(f"{arg_name} produced empty set")
     return vals
 
 
 def write_svg(
     out: Path,
-    cluster_size: int,
     submit_mode: str,
-    lengths: List[int],
-    series_by_length: Dict[int, List[float]],
-    total_by_length: Dict[int, int],
-    timeout_by_length: Dict[int, int],
+    sweep_axis: str,
+    fixed_cluster_size: Optional[int],
+    fixed_message_length: Optional[int],
+    keys: List[int],
+    series_by_key: Dict[int, List[float]],
+    total_by_key: Dict[int, int],
+    timeout_by_key: Dict[int, int],
 ) -> None:
     width = 1320
     cdf_box = (70, 110, 760, 390)
@@ -196,8 +201,8 @@ def write_svg(
     height = int(bottom_content + 14)
 
     all_vals: List[float] = []
-    for l in lengths:
-        all_vals.extend(series_by_length.get(l, []))
+    for k in keys:
+        all_vals.extend(series_by_key.get(k, []))
 
     if all_vals:
         cdf_min_x = min(all_vals) - min(all_vals) * 0.05
@@ -210,14 +215,13 @@ def write_svg(
     svg: List[str] = []
     svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">')
     svg.append('<rect x="0" y="0" width="100%" height="100%" fill="white"/>')
-    svg.append('<text x="36" y="36" font-size="26" font-family="Arial">Accept->Commit Latency vs Message Length</text>')
-    svg.append(
-        f'<text x="36" y="64" font-size="14" font-family="Arial">cluster_size={cluster_size} participating nodes, submit_mode={submit_mode}</text>'
-    )
-    # if submit_mode == "round_robin":
-    #     svg.append(
-    #         f'<text x="36" y="84" font-size="14" font-family="Arial">submitters rotate 1 -> 2 -> ... -> {cluster_size}</text>'
-    #     )
+    if sweep_axis == "cluster_size":
+        svg.append('<text x="36" y="36" font-size="26" font-family="Arial">Accept->Commit Latency vs Cluster Size</text>')
+        subtitle = f"message_length={fixed_message_length}B, submit_mode={submit_mode}"
+    else:
+        svg.append('<text x="36" y="36" font-size="26" font-family="Arial">Accept->Commit Latency vs Message Length</text>')
+        subtitle = f"cluster_size={fixed_cluster_size} participating nodes, submit_mode={submit_mode}"
+    svg.append(f'<text x="36" y="64" font-size="14" font-family="Arial">{subtitle}</text>')
 
     # CDF panel
     svg.append(f'<rect x="{cdf_x0}" y="{cdf_y0}" width="{cdf_w}" height="{cdf_h}" fill="none" stroke="#333"/>')
@@ -230,7 +234,11 @@ def write_svg(
         val = cdf_min_x + (i / 5) * (cdf_max_x - cdf_min_x)
         svg.append(f'<line x1="{gx:.1f}" y1="{cdf_y0}" x2="{gx:.1f}" y2="{cdf_y0 + cdf_h}" stroke="#eee"/>')
         svg.append(f'<text x="{gx - 13:.1f}" y="{cdf_y0 + cdf_h + 18}" font-size="10" font-family="Arial">{val:.2f}</text>')
-    svg.append(f'<text x="{cdf_x0}" y="{cdf_y0 - 12}" font-size="15" font-family="Arial">CDF (one line per message length)</text>')
+    if sweep_axis == "cluster_size":
+        cdf_title = "CDF (one line per cluster size)"
+    else:
+        cdf_title = "CDF (one line per message length)"
+    svg.append(f'<text x="{cdf_x0}" y="{cdf_y0 - 12}" font-size="15" font-family="Arial">{cdf_title}</text>')
     svg.append(
         f'<text x="{cdf_x0 + cdf_w/2 - 48}" y="{cdf_y0 + cdf_h + 36}" font-size="12" font-family="Arial">latency (ms)</text>'
     )
@@ -238,8 +246,8 @@ def write_svg(
     sx = cdf_w / (cdf_max_x - cdf_min_x)
     sy = cdf_h
 
-    for idx, length in enumerate(lengths):
-        vals = series_by_length.get(length, [])
+    for idx, key in enumerate(keys):
+        vals = series_by_key.get(key, [])
         pts = cdf_points(vals)
         if not pts:
             continue
@@ -256,37 +264,47 @@ def write_svg(
     legend_x = cdf_x0 + 12
     legend_y = cdf_y0 + 14
     legend_w = min(cdf_w - 24, 250)
-    legend_h = 22 + len(lengths) * 18 + 8
+    legend_h = 22 + len(keys) * 18 + 8
     svg.append(
         f'<rect x="{legend_x-6}" y="{legend_y-14}" width="{legend_w}" height="{legend_h}" fill="white" fill-opacity="0.88" stroke="#999"/>'
     )
     svg.append(
-        f'<text x="{legend_x}" y="{legend_y}" font-size="11" font-family="Arial">len / successful / timeout</text>'
+        f'<text x="{legend_x}" y="{legend_y}" font-size="11" font-family="Arial"> num_nodes / successful / timeout</text>'
     )
-    for idx, length in enumerate(lengths):
+    for idx, key in enumerate(keys):
         color = PALETTE[idx % len(PALETTE)]
-        succ = len(series_by_length.get(length, []))
-        total = total_by_length.get(length, 0)
-        tout = timeout_by_length.get(length, 0)
+        succ = len(series_by_key.get(key, []))
+        total = total_by_key.get(key, 0)
+        tout = timeout_by_key.get(key, 0)
         rate = (tout / total * 100.0) if total > 0 else 0.0
         yy = legend_y + (idx + 1) * 18
         svg.append(f'<line x1="{legend_x}" y1="{yy-4}" x2="{legend_x+20}" y2="{yy-4}" stroke="{color}" stroke-width="2"/>')
+        if sweep_axis == "cluster_size":
+            key_label = f"N={key}"
+        else:
+            key_label = f"len={key}B"
         svg.append(
-            f'<text x="{legend_x+26}" y="{yy}" font-size="11" font-family="Arial">len={length}B n={succ}/{total} timeout={rate:.1f}%</text>'
+            f'<text x="{legend_x+26}" y="{yy}" font-size="11" font-family="Arial">{key_label} n={succ}/{total} timeout={rate:.1f}%</text>'
         )
 
-    # Stats panel: p50/p95 vs message length + timeout rate text
+    # Stats panel: p50/p95 vs sweep axis.
     svg.append(f'<rect x="{st_x0}" y="{st_y0}" width="{st_w}" height="{st_h}" fill="none" stroke="#333"/>')
-    svg.append(f'<text x="{st_x0}" y="{st_y0 - 12}" font-size="15" font-family="Arial">p50/p95 vs message length</text>')
+    if sweep_axis == "cluster_size":
+        stats_title = "p50/p95 vs cluster size"
+        x_label = "cluster size (nodes)"
+    else:
+        stats_title = "p50/p95 vs message length"
+        x_label = "message length (bytes)"
+    svg.append(f'<text x="{st_x0}" y="{st_y0 - 12}" font-size="15" font-family="Arial">{stats_title}</text>')
     svg.append(
-        f'<text x="{st_x0 + st_w/2 - 60}" y="{st_y0 + st_h + 30}" font-size="11" font-family="Arial">message length (bytes)</text>'
+        f'<text x="{st_x0 + st_w/2 - 60}" y="{st_y0 + st_h + 30}" font-size="11" font-family="Arial">{x_label}</text>'
     )
     svg.append(
         f'<text x="{st_x0 - 50}" y="{st_y0 + st_h/2}" font-size="11" font-family="Arial" transform="rotate(-90 {st_x0 - 50},{st_y0 + st_h/2})">latency (ms)</text>'
     )
 
-    p50s = [summarize(series_by_length.get(l, []))["p50"] for l in lengths]
-    p95s = [summarize(series_by_length.get(l, []))["p95"] for l in lengths]
+    p50s = [summarize(series_by_key.get(k, []))["p50"] for k in keys]
+    p95s = [summarize(series_by_key.get(k, []))["p95"] for k in keys]
     finite_vals = [v for v in p50s + p95s if not math.isnan(v)]
     y_max = max([1.0] + finite_vals) * 1.15
 
@@ -296,12 +314,12 @@ def write_svg(
         svg.append(f'<line x1="{st_x0}" y1="{gy:.1f}" x2="{st_x0 + st_w}" y2="{gy:.1f}" stroke="#eee"/>')
         svg.append(f'<text x="{st_x0 - 40}" y="{gy + 4:.1f}" font-size="10" font-family="Arial">{val:.2f}</text>')
 
-    n = len(lengths)
+    n = len(keys)
     if n >= 1:
-        for i, l in enumerate(lengths):
+        for i, k in enumerate(keys):
             gx = st_x0 + (0 if n == 1 else (i / (n - 1)) * st_w)
             svg.append(f'<line x1="{gx:.1f}" y1="{st_y0}" x2="{gx:.1f}" y2="{st_y0 + st_h}" stroke="#f3f3f3"/>')
-            svg.append(f'<text x="{gx - 14:.1f}" y="{st_y0 + st_h + 18}" font-size="10" font-family="Arial">{l}</text>')
+            svg.append(f'<text x="{gx - 14:.1f}" y="{st_y0 + st_h + 18}" font-size="10" font-family="Arial">{k}</text>')
 
     def series_path(vals: List[float], color: str) -> None:
         pts = []
@@ -438,61 +456,90 @@ def run_one_length(
 
 def aggregate_rows(
     rows: List[Dict[str, object]],
-) -> Tuple[int, str, List[int], Dict[int, List[float]], Dict[int, int], Dict[int, int]]:
+) -> Tuple[
+    str,
+    List[int],
+    List[int],
+    str,
+    List[int],
+    Dict[int, List[float]],
+    Dict[int, int],
+    Dict[int, int],
+]:
     if not rows:
-        return 0, "", [], {}, {}, {}
+        return "", [], [], "", [], {}, {}, {}
 
-    cluster_size = int(rows[0]["cluster_size"])
-    submit_mode = str(rows[0]["submit_mode"])
-    series_by_length: Dict[int, List[float]] = {}
-    total_by_length: Dict[int, int] = {}
-    timeout_by_length: Dict[int, int] = {}
+    submit_modes = sorted({str(r["submit_mode"]) for r in rows})
+    submit_mode = submit_modes[0] if len(submit_modes) == 1 else "mixed"
+    cluster_sizes = sorted({int(r["cluster_size"]) for r in rows})
+    message_lengths = sorted({int(r["message_length_bytes"]) for r in rows})
+
+    if len(cluster_sizes) > 1 and len(message_lengths) > 1:
+        raise ValueError("CSV varies both cluster size and message length; sweep one axis at a time.")
+
+    if len(cluster_sizes) > 1:
+        sweep_axis = "cluster_size"
+        keys = cluster_sizes
+    else:
+        sweep_axis = "message_length"
+        keys = message_lengths
+
+    series_by_key: Dict[int, List[float]] = {k: [] for k in keys}
+    total_by_key: Dict[int, int] = {k: 0 for k in keys}
+    timeout_by_key: Dict[int, int] = {k: 0 for k in keys}
 
     for r in rows:
-        length = int(r["message_length_bytes"])
-        series_by_length.setdefault(length, [])
-        total_by_length[length] = total_by_length.get(length, 0) + 1
-        timeout_by_length.setdefault(length, 0)
+        key = int(r["cluster_size"]) if sweep_axis == "cluster_size" else int(r["message_length_bytes"])
+        total_by_key[key] = total_by_key.get(key, 0) + 1
 
         status = str(r.get("status", ""))
         lat = str(r.get("latency_ms", "")).strip()
         if status == "ok" and lat:
-            series_by_length[length].append(float(lat))
+            series_by_key[key].append(float(lat))
         else:
-            timeout_by_length[length] += 1
+            timeout_by_key[key] = timeout_by_key.get(key, 0) + 1
 
-    lengths = sorted(series_by_length.keys())
-    return cluster_size, submit_mode, lengths, series_by_length, total_by_length, timeout_by_length
+    keys = sorted(series_by_key.keys())
+    return submit_mode, cluster_sizes, message_lengths, sweep_axis, keys, series_by_key, total_by_key, timeout_by_key
 
 
 def write_summary(
     summary_path: Path,
     binary_label: str,
-    cluster_size: int,
     submit_mode: str,
-    lengths: List[int],
-    series_by_length: Dict[int, List[float]],
-    total_by_length: Dict[int, int],
-    timeout_by_length: Dict[int, int],
+    cluster_sizes: List[int],
+    message_lengths: List[int],
+    sweep_axis: str,
+    keys: List[int],
+    series_by_key: Dict[int, List[float]],
+    total_by_key: Dict[int, int],
+    timeout_by_key: Dict[int, int],
 ) -> None:
     with summary_path.open("w", encoding="utf-8") as f:
-        f.write("Exact Leader Accept->Commit Send Latency (Length Sweep)\n")
-        f.write("====================================================\n\n")
+        if sweep_axis == "cluster_size":
+            f.write("Exact Leader Accept->Commit Send Latency (Cluster-Size Sweep)\n")
+            f.write("=============================================================\n\n")
+        else:
+            f.write("Exact Leader Accept->Commit Send Latency (Message-Length Sweep)\n")
+            f.write("===============================================================\n\n")
         f.write("Metric: t(commit_send) - t(accept_send), using internal steady_clock trace.\n")
         f.write(f"Source: {binary_label}\n")
-        f.write(f"Cluster size (participating nodes): {cluster_size}\n")
         f.write(f"Submit mode: {submit_mode}\n")
         if submit_mode == "round_robin":
             f.write("Round robin submit order: 1 -> 2 -> ... -> N\n")
-        f.write(f"Message lengths (payload bytes): {','.join(str(l) for l in lengths)}\n\n")
+        f.write(f"Cluster sizes (participating nodes): {','.join(str(v) for v in cluster_sizes)}\n")
+        f.write(f"Message lengths (payload bytes): {','.join(str(v) for v in message_lengths)}\n\n")
 
-        for length in lengths:
-            vals = series_by_length[length]
+        for key in keys:
+            vals = series_by_key[key]
             st = summarize(vals)
-            total = total_by_length[length]
-            tout = timeout_by_length[length]
+            total = total_by_key[key]
+            tout = timeout_by_key[key]
             fail_rate = (tout / total * 100.0) if total else 0.0
-            f.write(f"Length {length} bytes:\n")
+            if sweep_axis == "cluster_size":
+                f.write(f"Cluster size {key} nodes:\n")
+            else:
+                f.write(f"Length {key} bytes:\n")
             f.write(f"  successful samples: {int(st['count'])}/{total}\n")
             f.write(f"  timeout/fail rate:  {fail_rate:.2f}%\n")
             f.write(f"  mean: {st['mean']:.3f} ms\n")
@@ -519,7 +566,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Evaluate exact leader accept_send->commit_send latency")
     ap.add_argument("--binary", default="./build/paxos_node")
     ap.add_argument("--base-port", type=int, default=18000)
-    ap.add_argument("--cluster-size", type=int, default=3)
+    ap.add_argument("--cluster-size", default="3", help="single value or CSV, e.g. 3 or 3,5,11")
     ap.add_argument("--commands", type=int, default=100)
     ap.add_argument("--timeout-ms", type=int, default=10000)
     ap.add_argument("--submit-mode", choices=["round_robin", "leader_only"], default="round_robin")
@@ -532,9 +579,17 @@ def main() -> int:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = out_dir / ("accept_to_commit_samples_" + str(args.message_lengths) + "_" + str(args.cluster_size) + "_" + str(args.submit_mode) + ".csv")
-    summary_path = out_dir / ("accept_to_commit_summary_" + str(args.message_lengths) + "_" + str(args.cluster_size) + "_" + str(args.submit_mode) + ".txt")
-    fig_path = out_dir / ("accept_to_commit_figure_" + str(args.message_lengths) + "_" + str(args.cluster_size) + "_" + str(args.submit_mode) + ".svg")
+    tag = str(args.message_lengths) + "_" + str(args.cluster_size) + "_" + str(args.submit_mode)
+    if args.mode == "plot" and args.input_csv:
+        input_stem = Path(args.input_csv).stem
+        prefix = "accept_to_commit_samples_"
+        if input_stem.startswith(prefix):
+            tag = input_stem[len(prefix):]
+        else:
+            tag = "from_csv"
+    csv_path = out_dir / ("accept_to_commit_samples_" + tag + ".csv")
+    summary_path = out_dir / ("accept_to_commit_summary_" + tag + ".txt")
+    fig_path = out_dir / ("accept_to_commit_figure_" + tag + ".svg")
 
     all_rows: List[Dict[str, object]] = []
 
@@ -544,24 +599,28 @@ def main() -> int:
             print(f"binary not found: {binary}", file=sys.stderr)
             return 2
 
-        if args.cluster_size < 3:
-            print("cluster_size must be >= 3 for this Paxos setup", file=sys.stderr)
+        cluster_sizes = sorted(parse_int_csv(args.cluster_size, "--cluster-size", min_value=3))
+        message_lengths = sorted(parse_int_csv(args.message_lengths, "--message-lengths", min_value=1))
+        if len(cluster_sizes) > 1 and len(message_lengths) > 1:
+            print("Please sweep one axis at a time: vary cluster-size OR message-lengths, not both.", file=sys.stderr)
             return 2
 
-        lengths = sorted(parse_lengths(args.message_lengths))
-        for sweep_idx, length in enumerate(lengths):
-            rows = run_one_length(
-                binary=binary,
-                base_port=args.base_port,
-                cluster_size=args.cluster_size,
-                submit_mode=args.submit_mode,
-                leader_id=args.leader_id,
-                commands=args.commands,
-                timeout_ms=args.timeout_ms,
-                length_bytes=length,
-                sweep_idx=sweep_idx,
-            )
-            all_rows.extend(rows)
+        sweep_idx = 0
+        for cluster_size in cluster_sizes:
+            for length in message_lengths:
+                rows = run_one_length(
+                    binary=binary,
+                    base_port=args.base_port,
+                    cluster_size=cluster_size,
+                    submit_mode=args.submit_mode,
+                    leader_id=args.leader_id,
+                    commands=args.commands,
+                    timeout_ms=args.timeout_ms,
+                    length_bytes=length,
+                    sweep_idx=sweep_idx,
+                )
+                all_rows.extend(rows)
+                sweep_idx += 1
 
         with csv_path.open("w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(
@@ -597,29 +656,42 @@ def main() -> int:
         print("no rows available to summarize/plot", file=sys.stderr)
         return 2
 
-    cluster_size, submit_mode, lengths, series_by_length, total_by_length, timeout_by_length = aggregate_rows(all_rows)
+    (
+        submit_mode,
+        cluster_sizes,
+        message_lengths,
+        sweep_axis,
+        keys,
+        series_by_key,
+        total_by_key,
+        timeout_by_key,
+    ) = aggregate_rows(all_rows)
     source_label = str(Path(args.binary)) if args.mode in ("both", "run") else f"csv:{csv_path}"
 
     write_summary(
         summary_path=summary_path,
         binary_label=source_label,
-        cluster_size=cluster_size,
         submit_mode=submit_mode,
-        lengths=lengths,
-        series_by_length=series_by_length,
-        total_by_length=total_by_length,
-        timeout_by_length=timeout_by_length,
+        cluster_sizes=cluster_sizes,
+        message_lengths=message_lengths,
+        sweep_axis=sweep_axis,
+        keys=keys,
+        series_by_key=series_by_key,
+        total_by_key=total_by_key,
+        timeout_by_key=timeout_by_key,
     )
 
     if args.mode in ("both", "plot"):
         write_svg(
             fig_path,
-            cluster_size=cluster_size,
             submit_mode=submit_mode,
-            lengths=lengths,
-            series_by_length=series_by_length,
-            total_by_length=total_by_length,
-            timeout_by_length=timeout_by_length,
+            sweep_axis=sweep_axis,
+            fixed_cluster_size=(cluster_sizes[0] if len(cluster_sizes) == 1 else None),
+            fixed_message_length=(message_lengths[0] if len(message_lengths) == 1 else None),
+            keys=keys,
+            series_by_key=series_by_key,
+            total_by_key=total_by_key,
+            timeout_by_key=timeout_by_key,
         )
 
     print(f"samples csv: {csv_path}")

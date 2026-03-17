@@ -28,7 +28,10 @@ class PaxosNode {
   };
 
   PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks,
-            bool eval_trace_enabled = false);
+            bool eval_trace_enabled = false,
+            std::uint64_t heartbeat_interval_ticks = 2,
+            std::uint64_t election_timeout_base_ticks = 14,
+            std::uint64_t election_timeout_step_ticks = 3);
 
   void start();
   void submit_client_command(std::string command);
@@ -105,6 +108,7 @@ class PaxosNode {
 
   std::uint64_t last_leader_contact_{0};
   std::uint64_t election_timeout_ticks_;
+  std::uint64_t heartbeat_interval_ticks_;
 
   std::unordered_map<int, AcceptedValue> log_;
   std::vector<std::string> applied_log_;

@@ -21,6 +21,9 @@ int main(int argc, char** argv) {
   int node_id = -1;
   std::string nodes_spec;
   bool eval_trace = false;
+  std::uint64_t heartbeat_ticks = 2;
+  std::uint64_t election_timeout_base = 14;
+  std::uint64_t election_timeout_step = 3;
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -28,6 +31,12 @@ int main(int argc, char** argv) {
       node_id = std::stoi(argv[++i]);
     } else if (arg == "--nodes" && i + 1 < argc) {
       nodes_spec = argv[++i];
+    } else if (arg == "--heartbeat-ticks" && i + 1 < argc) {
+      heartbeat_ticks = static_cast<std::uint64_t>(std::stoull(argv[++i]));
+    } else if (arg == "--election-timeout-base" && i + 1 < argc) {
+      election_timeout_base = static_cast<std::uint64_t>(std::stoull(argv[++i]));
+    } else if (arg == "--election-timeout-step" && i + 1 < argc) {
+      election_timeout_step = static_cast<std::uint64_t>(std::stoull(argv[++i]));
     } else if (arg == "--help") {
       usage(argv[0]);
       return 0;
@@ -38,6 +47,10 @@ int main(int argc, char** argv) {
 
   if (node_id <= 0 || nodes_spec.empty()) {
     usage(argv[0]);
+    return 1;
+  }
+  if (heartbeat_ticks == 0 || election_timeout_base == 0) {
+    std::cerr << "fatal: heartbeat/election timeout values must be > 0\n";
     return 1;
   }
 
@@ -68,7 +81,8 @@ int main(int argc, char** argv) {
         .alive = [&transport](int id) { return transport.alive(id); },
     };
 
-    PaxosNode node(node_id, all_nodes, runtime, std::move(hooks), eval_trace);
+    PaxosNode node(node_id, all_nodes, runtime, std::move(hooks), eval_trace, heartbeat_ticks, election_timeout_base,
+                   election_timeout_step);
     std::cout << "Starting " << node_id << " in a cluster of " << all_nodes.size() << std::endl;
     if (eval_trace) {
       std::cout << "eval trace enabled\n";
@@ -111,6 +125,12 @@ int main(int argc, char** argv) {
           return;
         }
         if (cmd == "/crash") {
+          if (eval_trace) {
+            const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                    std::chrono::steady_clock::now().time_since_epoch())
+                                    .count();
+            std::cout << "node=" << node_id << " phase=node_crashed t_ns=" << now_ns << std::endl;
+          }
           transport.crash();
           std::cout << "node crashed\n";
           return;

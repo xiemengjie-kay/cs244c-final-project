@@ -106,15 +106,25 @@ MessageType payload_type(const Payload& payload) {
 }
 
 PaxosNode::PaxosNode(int node_id, std::vector<int> all_nodes, Runtime& runtime, NetworkHooks hooks,
-                     bool eval_trace_enabled)
+                     bool eval_trace_enabled,
+                     std::uint64_t heartbeat_interval_ticks,
+                     std::uint64_t election_timeout_base_ticks,
+                     std::uint64_t election_timeout_step_ticks)
     : id_(node_id),
       all_nodes_(std::move(all_nodes)),
       runtime_(runtime),
       network_(std::move(hooks)),
       inbox_(runtime),
-      election_timeout_ticks_(14 + static_cast<std::uint64_t>(node_id * 3)),
+      election_timeout_ticks_(election_timeout_base_ticks + static_cast<std::uint64_t>(node_id) * election_timeout_step_ticks),
+      heartbeat_interval_ticks_(std::max<std::uint64_t>(1, heartbeat_interval_ticks)),
       eval_trace_enabled_(eval_trace_enabled) {
   std::cout << "Paxos Node " << node_id << "initialized" << std::endl;
+  if (eval_trace_enabled_) {
+    const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+    std::cout << "node=" << id_ << " phase=node_start t_ns=" << now_ns << std::endl;
+  }
   network_.register_endpoint(id_, &inbox_);
   last_leader_contact_ = runtime_.tick();
   std::cout << "Last Leader Contact " << last_leader_contact_ << std::endl;
@@ -157,7 +167,7 @@ DetachedTask PaxosNode::election_loop() {
 
 DetachedTask PaxosNode::heartbeat_loop() {
 	while (true) {
-		co_await SleepFor{runtime_, 2};
+		co_await SleepFor{runtime_, heartbeat_interval_ticks_};
 		if (is_leader_ && network_.alive(id_)) {
 			broadcast(Heartbeat{
 				.ballot = static_cast<std::uint64_t>(active_ballot_),
@@ -309,6 +319,7 @@ void PaxosNode::on_commit(int /*from*/, const Commit& commit, int commit_ballot)
   accepted.ballot = commit_ballot;
   accepted.command = commit.value.val;
   accepted.committed = true;
+  emit_eval_trace("follower_commit", slot, commit.value.val);
 
   next_proposal_slot_ = std::max(next_proposal_slot_, slot + 1);
   apply_commits();
@@ -427,6 +438,12 @@ void PaxosNode::become_leader(int ballot) {
   active_ballot_ = ballot;
   promised_ballot_ = std::max(promised_ballot_, ballot);
   last_leader_contact_ = runtime_.tick();
+  if (eval_trace_enabled_) {
+    const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+    std::cout << "node=" << id_ << " phase=leader_elected ballot=" << ballot << " t_ns=" << now_ns << std::endl;
+  }
 
   std::unordered_map<int, RecoveredEntry> chosen;
   if (prepare_state_.has_value()) {

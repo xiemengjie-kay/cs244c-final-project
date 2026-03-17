@@ -1,50 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="540" viewBox="0 0 1140 540">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560">
 <rect x="0" y="0" width="100%" height="100%" fill="white"/>
 <text x="30" y="34" font-size="24" font-family="Arial">End-to-End Latency: Client Submit -> Leader Commit</text>
-<rect x="70" y="90" width="470" height="320" fill="none" stroke="#333"/>
-<line x1="70" y1="410.0" x2="540" y2="410.0" stroke="#eee"/>
-<text x="30" y="414.0" font-size="10" font-family="Arial">0.0</text>
-<line x1="70" y1="346.0" x2="540" y2="346.0" stroke="#eee"/>
-<text x="30" y="350.0" font-size="10" font-family="Arial">40.2</text>
-<line x1="70" y1="282.0" x2="540" y2="282.0" stroke="#eee"/>
-<text x="30" y="286.0" font-size="10" font-family="Arial">80.5</text>
-<line x1="70" y1="218.0" x2="540" y2="218.0" stroke="#eee"/>
-<text x="30" y="222.0" font-size="10" font-family="Arial">120.7</text>
-<line x1="70" y1="154.0" x2="540" y2="154.0" stroke="#eee"/>
-<text x="30" y="158.0" font-size="10" font-family="Arial">160.9</text>
-<line x1="70" y1="90.0" x2="540" y2="90.0" stroke="#eee"/>
-<text x="30" y="94.0" font-size="10" font-family="Arial">201.2</text>
-<path d="M 70.00 288.20 L 74.75 221.31 L 79.49 227.81 L 84.24 245.99 L 88.99 235.56 L 93.74 146.58 L 98.48 221.67 L 103.23 156.47 L 107.98 155.15 L 112.73 219.47 L 117.47 157.98 L 122.22 143.67 L 126.97 219.99 L 131.72 152.98 L 136.46 217.86 L 141.21 317.15 L 145.96 154.09 L 150.71 155.07 L 155.45 247.62 L 160.20 161.61 L 164.95 218.79 L 169.70 309.44 L 174.44 162.01 L 179.19 219.19 L 183.94 227.27 L 188.69 162.30 L 193.43 142.21 L 198.18 235.81 L 202.93 231.31 L 207.68 142.01 L 212.42 220.49 L 217.17 154.83 L 221.92 148.98 L 226.67 233.77 L 231.41 156.23 L 236.16 150.75 L 240.91 229.17 L 245.66 236.55 L 250.40 229.12 L 255.15 230.84 L 259.90 234.49 L 264.65 154.87 L 269.39 225.11 L 274.14 144.57 L 278.89 148.09 L 283.64 230.49 L 288.38 143.13 L 293.13 151.66 L 297.88 228.55 L 302.63 218.41 L 307.37 147.62 L 312.12 226.05 L 316.87 238.30 L 321.62 237.13 L 326.36 239.37 L 331.11 142.43 L 335.86 156.62 L 340.61 231.04 L 345.35 165.30 L 350.10 218.71 L 354.85 237.96 L 359.60 148.45 L 364.34 150.32 L 369.09 248.43 L 373.84 213.75 L 378.59 164.25 L 383.33 216.51 L 388.08 156.54 L 392.83 147.53 L 397.58 230.91 L 402.32 308.41 L 407.07 145.01 L 411.82 227.41 L 416.57 131.74 L 421.31 168.37 L 426.06 223.07 L 430.81 171.55 L 435.56 145.28 L 440.30 317.55 L 445.05 227.04 L 449.80 151.49 L 454.55 315.49 L 459.29 227.67 L 464.04 233.54 L 468.79 312.96 L 473.54 150.83 L 478.28 156.48 L 483.03 304.86 L 487.78 230.26 L 492.53 148.99 L 497.27 235.28 L 502.02 157.09 L 506.77 229.01 L 511.52 309.90 L 516.26 231.30 L 521.01 144.68 L 525.76 304.80 L 530.51 234.85 L 535.25 230.51 L 540.00 314.13" fill="none" stroke="#1f77b4" stroke-width="2"/>
-<text x="70" y="78" font-size="14" font-family="Arial">Per-command latency (successful only)</text>
-<text x="263.0" y="440" font-size="12" font-family="Arial">command index</text>
-<text x="15" y="250.0" font-size="12" font-family="Arial" transform="rotate(-90 15,250.0)">latency (ms)</text>
-<rect x="620" y="90" width="450" height="320" fill="none" stroke="#333"/>
-<line x1="620" y1="410.0" x2="1070" y2="410.0" stroke="#eee"/>
-<text x="592" y="414.0" font-size="10" font-family="Arial">0.0</text>
-<line x1="620" y1="346.0" x2="1070" y2="346.0" stroke="#eee"/>
-<text x="592" y="350.0" font-size="10" font-family="Arial">0.2</text>
-<line x1="620" y1="282.0" x2="1070" y2="282.0" stroke="#eee"/>
-<text x="592" y="286.0" font-size="10" font-family="Arial">0.4</text>
-<line x1="620" y1="218.0" x2="1070" y2="218.0" stroke="#eee"/>
-<text x="592" y="222.0" font-size="10" font-family="Arial">0.6</text>
-<line x1="620" y1="154.0" x2="1070" y2="154.0" stroke="#eee"/>
-<text x="592" y="158.0" font-size="10" font-family="Arial">0.8</text>
-<line x1="620" y1="90.0" x2="1070" y2="90.0" stroke="#eee"/>
-<text x="592" y="94.0" font-size="10" font-family="Arial">1.0</text>
-<line x1="620.0" y1="90" x2="620.0" y2="410" stroke="#eee"/>
-<text x="606.0" y="428" font-size="10" font-family="Arial">38.1</text>
-<line x1="710.0" y1="90" x2="710.0" y2="410" stroke="#eee"/>
-<text x="696.0" y="428" font-size="10" font-family="Arial">67.2</text>
-<line x1="800.0" y1="90" x2="800.0" y2="410" stroke="#eee"/>
-<text x="786.0" y="428" font-size="10" font-family="Arial">96.3</text>
-<line x1="890.0" y1="90" x2="890.0" y2="410" stroke="#eee"/>
-<text x="876.0" y="428" font-size="10" font-family="Arial">125.5</text>
-<line x1="980.0" y1="90" x2="980.0" y2="410" stroke="#eee"/>
-<text x="966.0" y="428" font-size="10" font-family="Arial">154.6</text>
-<line x1="1070.0" y1="90" x2="1070.0" y2="410" stroke="#eee"/>
-<text x="1056.0" y="428" font-size="10" font-family="Arial">183.7</text>
-<path d="M 681.83 406.80 L 682.61 403.60 L 685.83 400.40 L 688.47 397.20 L 690.75 394.00 L 696.69 390.80 L 697.58 387.60 L 699.59 384.40 L 706.49 381.20 L 706.61 378.00 L 738.87 374.80 L 816.16 371.60 L 817.73 368.40 L 820.90 365.20 L 833.78 362.00 L 835.86 358.80 L 836.52 355.60 L 838.12 352.40 L 839.26 349.20 L 840.70 346.00 L 841.17 342.80 L 841.73 339.60 L 842.56 336.40 L 843.27 333.20 L 844.66 330.00 L 845.11 326.80 L 849.44 323.60 L 849.45 320.40 L 849.96 317.20 L 850.21 314.00 L 850.36 310.80 L 851.00 307.60 L 851.03 304.40 L 851.49 301.20 L 853.60 298.00 L 853.69 294.80 L 853.91 291.60 L 854.80 288.40 L 856.24 285.20 L 856.51 282.00 L 857.02 278.80 L 857.28 275.60 L 857.73 272.40 L 859.66 269.20 L 861.49 266.00 L 865.46 262.80 L 868.18 259.60 L 868.88 256.40 L 870.46 253.20 L 871.44 250.00 L 872.44 246.80 L 872.99 243.60 L 873.78 240.40 L 873.92 237.20 L 874.51 234.00 L 875.59 230.80 L 878.20 227.60 L 883.56 224.40 L 965.59 221.20 L 971.76 218.00 L 977.73 214.80 L 979.78 211.60 L 983.57 208.40 L 984.13 205.20 L 984.91 202.00 L 991.95 198.80 L 993.69 195.60 L 994.60 192.40 L 994.76 189.20 L 994.88 186.00 L 994.90 182.80 L 995.36 179.60 L 997.46 176.40 L 997.62 173.20 L 998.01 170.00 L 998.09 166.80 L 999.51 163.60 L 1001.68 160.40 L 1004.24 157.20 L 1004.58 154.00 L 1005.86 150.80 L 1006.01 147.60 L 1006.84 144.40 L 1009.43 141.20 L 1009.44 138.00 L 1010.48 134.80 L 1011.18 131.60 L 1012.08 128.40 L 1012.27 125.20 L 1014.12 122.00 L 1016.65 118.80 L 1017.17 115.60 L 1017.82 112.40 L 1018.01 109.20 L 1019.76 106.00 L 1020.82 102.80 L 1022.17 99.60 L 1022.60 96.40 L 1023.00 93.20 L 1042.96 90.00" fill="none" stroke="#111" stroke-width="2"/>
-<text x="620" y="78" font-size="14" font-family="Arial">CDF</text>
-<text x="811.0" y="440" font-size="12" font-family="Arial">latency (ms)</text>
-<text x="70" y="460" font-size="12" font-family="Arial">n_ok=100/100 timeout=0 mean=128.413ms p50=119.613ms p95=167.444ms p99=168.540ms</text>
+<text x="30" y="58" font-size="13" font-family="Arial">cluster_sizes=3, message_length=256, submit_mode=round_robin</text>
+<rect x="70" y="90" width="500" height="340" fill="none" stroke="#333"/>
+<line x1="70" y1="430.0" x2="570" y2="430.0" stroke="#eee"/>
+<text x="42" y="434.0" font-size="10" font-family="Arial">0.0</text>
+<line x1="70" y1="362.0" x2="570" y2="362.0" stroke="#eee"/>
+<text x="42" y="366.0" font-size="10" font-family="Arial">0.2</text>
+<line x1="70" y1="294.0" x2="570" y2="294.0" stroke="#eee"/>
+<text x="42" y="298.0" font-size="10" font-family="Arial">0.4</text>
+<line x1="70" y1="226.0" x2="570" y2="226.0" stroke="#eee"/>
+<text x="42" y="230.0" font-size="10" font-family="Arial">0.6</text>
+<line x1="70" y1="158.0" x2="570" y2="158.0" stroke="#eee"/>
+<text x="42" y="162.0" font-size="10" font-family="Arial">0.8</text>
+<line x1="70" y1="90.0" x2="570" y2="90.0" stroke="#eee"/>
+<text x="42" y="94.0" font-size="10" font-family="Arial">1.0</text>
+<line x1="70.0" y1="90" x2="70.0" y2="430" stroke="#f3f3f3"/>
+<text x="56.0" y="448" font-size="10" font-family="Arial">38.1</text>
+<line x1="170.0" y1="90" x2="170.0" y2="430" stroke="#f3f3f3"/>
+<text x="156.0" y="448" font-size="10" font-family="Arial">67.2</text>
+<line x1="270.0" y1="90" x2="270.0" y2="430" stroke="#f3f3f3"/>
+<text x="256.0" y="448" font-size="10" font-family="Arial">96.3</text>
+<line x1="370.0" y1="90" x2="370.0" y2="430" stroke="#f3f3f3"/>
+<text x="356.0" y="448" font-size="10" font-family="Arial">125.5</text>
+<line x1="470.0" y1="90" x2="470.0" y2="430" stroke="#f3f3f3"/>
+<text x="456.0" y="448" font-size="10" font-family="Arial">154.6</text>
+<line x1="570.0" y1="90" x2="570.0" y2="430" stroke="#f3f3f3"/>
+<text x="556.0" y="448" font-size="10" font-family="Arial">183.7</text>
+<path d="M 138.70 426.60 L 139.57 423.20 L 143.14 419.80 L 146.08 416.40 L 148.61 413.00 L 155.21 409.60 L 156.20 406.20 L 158.44 402.80 L 166.10 399.40 L 166.23 396.00 L 202.08 392.60 L 287.95 389.20 L 289.70 385.80 L 293.23 382.40 L 307.53 379.00 L 309.85 375.60 L 310.58 372.20 L 312.35 368.80 L 313.63 365.40 L 315.22 362.00 L 315.75 358.60 L 316.36 355.20 L 317.28 351.80 L 318.07 348.40 L 319.62 345.00 L 320.12 341.60 L 324.93 338.20 L 324.94 334.80 L 325.51 331.40 L 325.79 328.00 L 325.95 324.60 L 326.67 321.20 L 326.70 317.80 L 327.21 314.40 L 329.56 311.00 L 329.65 307.60 L 329.90 304.20 L 330.89 300.80 L 332.49 297.40 L 332.79 294.00 L 333.36 290.60 L 333.65 287.20 L 334.15 283.80 L 336.29 280.40 L 338.32 277.00 L 342.73 273.60 L 345.75 270.20 L 346.53 266.80 L 348.29 263.40 L 349.37 260.00 L 350.49 256.60 L 351.10 253.20 L 351.98 249.80 L 352.13 246.40 L 352.79 243.00 L 353.99 239.60 L 356.89 236.20 L 362.84 232.80 L 453.99 229.40 L 460.85 226.00 L 467.48 222.60 L 469.75 219.20 L 473.96 215.80 L 474.59 212.40 L 475.46 209.00 L 483.28 205.60 L 485.21 202.20 L 486.22 198.80 L 486.41 195.40 L 486.54 192.00 L 486.56 188.60 L 487.07 185.20 L 489.40 181.80 L 489.58 178.40 L 490.01 175.00 L 490.10 171.60 L 491.68 168.20 L 494.09 164.80 L 496.93 161.40 L 497.31 158.00 L 498.73 154.60 L 498.90 151.20 L 499.83 147.80 L 502.70 144.40 L 502.72 141.00 L 503.87 137.60 L 504.65 134.20 L 505.65 130.80 L 505.86 127.40 L 507.91 124.00 L 510.72 120.60 L 511.30 117.20 L 512.02 113.80 L 512.24 110.40 L 514.18 107.00 L 515.36 103.60 L 516.86 100.20 L 517.33 96.80 L 517.78 93.40 L 539.95 90.00" fill="none" stroke="#1f77b4" stroke-width="2"/>
+<text x="70" y="78" font-size="14" font-family="Arial">CDF</text>
+<text x="286.0" y="460" font-size="12" font-family="Arial">latency (ms)</text>
+<text x="14" y="260.0" font-size="12" font-family="Arial" transform="rotate(-90 14,260.0)">CDF</text>
+<rect x="640" y="90" width="500" height="340" fill="none" stroke="#333"/>
+<line x1="640" y1="430.0" x2="1140" y2="430.0" stroke="#eee"/>
+<text x="600" y="434.0" font-size="10" font-family="Arial">0.0</text>
+<line x1="640" y1="362.0" x2="1140" y2="362.0" stroke="#eee"/>
+<text x="600" y="366.0" font-size="10" font-family="Arial">38.5</text>
+<line x1="640" y1="294.0" x2="1140" y2="294.0" stroke="#eee"/>
+<text x="600" y="298.0" font-size="10" font-family="Arial">77.0</text>
+<line x1="640" y1="226.0" x2="1140" y2="226.0" stroke="#eee"/>
+<text x="600" y="230.0" font-size="10" font-family="Arial">115.5</text>
+<line x1="640" y1="158.0" x2="1140" y2="158.0" stroke="#eee"/>
+<text x="600" y="162.0" font-size="10" font-family="Arial">154.0</text>
+<line x1="640" y1="90.0" x2="1140" y2="90.0" stroke="#eee"/>
+<text x="600" y="94.0" font-size="10" font-family="Arial">192.6</text>
+<line x1="640.0" y1="90" x2="640.0" y2="430" stroke="#f3f3f3"/>
+<text x="630.0" y="448" font-size="10" font-family="Arial">3</text>
+<circle cx="640.00" cy="218.80" r="2.8" fill="#1f77b4"/>
+<circle cx="640.00" cy="134.35" r="2.8" fill="#d62728"/>
+<text x="640" y="78" font-size="14" font-family="Arial">p50/p95 vs cluster size</text>
+<text x="838.0" y="460" font-size="12" font-family="Arial">cluster size (nodes)</text>
+<text x="582" y="260.0" font-size="12" font-family="Arial" transform="rotate(-90 582,260.0)">latency (ms)</text>
+<rect x="76" y="90" width="260" height="48" fill="white" fill-opacity="0.88" stroke="#999"/>
+<text x="82" y="104" font-size="11" font-family="Arial">cluster / successful / timeout</text>
+<line x1="82" y1="118" x2="102" y2="118" stroke="#1f77b4" stroke-width="2"/>
+<text x="108" y="122" font-size="11" font-family="Arial">N=3 n=100/100 timeout=0.0%</text>
+<line x1="652" y1="104" x2="676" y2="104" stroke="#1f77b4" stroke-width="2"/>
+<text x="682" y="108" font-size="11" font-family="Arial">p50</text>
+<line x1="722" y1="104" x2="746" y2="104" stroke="#d62728" stroke-width="2"/>
+<text x="752" y="108" font-size="11" font-family="Arial">p95</text>
+<text x="70" y="500" font-size="12" font-family="Arial">overall n_ok=100/100 timeout=0 mean=128.413ms p50=119.613ms p95=167.444ms p99=168.540ms</text>
 </svg>

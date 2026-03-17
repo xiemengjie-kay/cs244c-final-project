@@ -20,10 +20,10 @@ Run tests:
 ctest --test-dir build --output-on-failure
 ```
 
-Run local in-memory demo:
+Show node executable usage:
 
 ```bash
-./build/paxos_demo
+./build/paxos_node --help
 ```
 
 Run one Paxos node per process (3 terminals):
@@ -42,3 +42,21 @@ Terminal 3:
 ```bash
 ./build/paxos_node --id 3 --nodes 1:15001,2:15002,3:15003
 ```
+
+## Latency Evaluation (localhost)
+
+Automated evaluation script:
+
+```bash
+python3 tools/eval_latency.py --binary ./build/paxos_node --commands 100 --warmup 10 --base-port 18000 --out-dir eval
+```
+
+Outputs:
+
+- `eval/latency_samples.csv`: per-command latency samples
+- `eval/latency_summary.txt`: p50/p95/p99 and throughput summary
+- `eval/latency_figure.svg`: visualization figure
+
+Detailed methodology and experiment variants:
+
+- `docs/latency_evaluation.md`
