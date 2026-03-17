@@ -6,8 +6,32 @@
 
 // the server here is in the c++ nodes
 // the client is any browser
-EditorServer::EditorServer(std::queue<std::string>& queue, std::mutex& mu)
-	: input_queue(queue), input_mu(mu) {}
+
+std::string encode(const std::string& text) {
+	std::string result = text;
+	size_t pos = 0;
+	while ((pos = result.find('\n', pos)) != std::string::npos) {
+		result.replace(pos, 1, "\\n");
+		pos += 2;
+	}
+	return result;
+}
+
+void EditorServer::send_full_document_to_client(
+	int client_fd, const std::string& document) {
+	std::string msg = "FULL " + encode(document) + "\n"; // <-- note the newline
+	std::lock_guard lock(clients_mu);
+
+	ssize_t r = send(client_fd, msg.c_str(), msg.size(), 0);
+	if (r <= 0) {
+		close(client_fd);
+		clients.erase(std::remove(clients.begin(), clients.end(), client_fd),
+			clients.end());
+	}
+}
+
+EditorServer::EditorServer(std::queue<std::string>& queue, std::mutex& mu, std::string& document)
+	: input_queue(queue), input_mu(mu), document(document) {}
 
 void EditorServer::start(int port) {
 	running = true;
@@ -45,6 +69,7 @@ void EditorServer::server_loop(int port) {
 			clients.push_back(client_fd);
 		}
 
+		// send_full_document_to_client(client_fd, document);
 		std::thread(&EditorServer::client_loop, this, client_fd).detach();
 	}
 
@@ -66,7 +91,10 @@ void EditorServer::client_loop(int client_fd) {
 		while ((pos = pending.find('\n')) != std::string::npos) {
 			std::string line = pending.substr(0, pos);
 			pending.erase(0, pos + 1);
-
+			if (line == "FETCH_FULL_DOCUMENT") {
+				send_full_document_to_client(client_fd, document);
+				continue;
+			}
 			{
 				std::lock_guard lock(input_mu);
 				input_queue.push(std::move(line));

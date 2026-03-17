@@ -70,7 +70,10 @@ const wss = new WebSocket.Server({ port: WS_PORT });
 console.log("WebSocket server running on ws://localhost:" + WS_PORT);
 
 wss.on("connection", (ws) => {
-console.log("Browser connected");
+  console.log("Browser connected");
+  if (tcp && !tcp.destroyed) {
+    tcp.write("FETCH_FULL_DOCUMENT\n"); // send a special command
+  }
 
   // append newline to browser message
   // on receiving message from browser, send to C++ server via TCP

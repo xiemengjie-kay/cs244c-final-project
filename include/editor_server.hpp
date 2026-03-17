@@ -9,7 +9,7 @@
 
 class EditorServer {
   public:
-	EditorServer(std::queue<std::string>& queue, std::mutex& mu);
+	EditorServer(std::queue<std::string>& queue, std::mutex& mu, std::string& document);
 
 	void start(int port);
 	void stop();
@@ -29,4 +29,7 @@ class EditorServer {
 
 	std::thread server_thread;
 	std::atomic<bool> running{false};
+
+	std::string& document;
+	void send_full_document_to_client(int client_fd, const std::string& document);
 };

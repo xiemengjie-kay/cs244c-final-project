@@ -110,3 +110,31 @@ bool parse_command(const std::string& cmd, EditOperation& out) {
 
 	return false;
 }
+
+void apply_to_document(std::string& doc, const std::string& cmd) {
+    std::istringstream iss(cmd);
+    std::string clientId, reqId, type;
+    iss >> clientId >> reqId >> type;
+
+    if (type == "INSERT") {
+        int pos;
+        iss >> pos;
+        std::string text;
+        std::getline(iss, text);
+        if (!text.empty() && text[0] == ' ') text.erase(0, 1);
+
+        // decode \n
+        size_t p;
+        while ((p = text.find("\\n")) != std::string::npos) {
+            text.replace(p, 2, "\n");
+        }
+
+        doc.insert(pos, text);
+    }
+
+    if (type == "DELETE") {
+        int pos, len;
+        iss >> pos >> len;
+        doc.erase(pos, len);
+    }
+}

@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
     usage(argv[0]);
     return 1;
   }
+  std::string document;
 
   try {
     auto nodes = parse_nodes(nodes_spec);
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
 
     // catch events from browser
     
-    EditorServer editor(input_queue, input_mu);
+    EditorServer editor(input_queue, input_mu, document);
     editor.start(tcp_port);
 
     // catch terminal input in a separate thread
@@ -145,7 +146,7 @@ int main(int argc, char** argv) {
         const auto& applied = node.applied_commands();
         for (int i = last_commit; i < node.commit_index(); ++i) {
           std::string command  = applied[static_cast<std::size_t>(i)];
-          EditOperation op;
+          apply_to_document(document, command);
           editor.broadcast(command);
           const std::string committed =
               "node " + std::to_string(node_id) + " committed slot " + std::to_string(i + 1) +
