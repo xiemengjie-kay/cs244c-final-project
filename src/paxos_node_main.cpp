@@ -146,13 +146,7 @@ int main(int argc, char** argv) {
         for (int i = last_commit; i < node.commit_index(); ++i) {
           std::string command  = applied[static_cast<std::size_t>(i)];
           EditOperation op;
-          bool parsed = parse_command(command, op);
           editor.broadcast(command);
-          if (parsed) {
-            // TODO: turn this into actual commands on browser instead of just printing
-            editor.broadcast("hello-from-node-" + std::to_string(node_id));
-            std::cout << (int)op.type << " " << op.position << " " << op.text << " " << op.length << "\n";
-          }
           const std::string committed =
               "node " + std::to_string(node_id) + " committed slot " + std::to_string(i + 1) +
               ": " + applied[static_cast<std::size_t>(i)];

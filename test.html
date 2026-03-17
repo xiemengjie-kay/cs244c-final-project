@@ -32,6 +32,9 @@ const port = params.get("port") || "8080";
 
 const ws = new WebSocket(`ws://localhost:${port}`);
 
+let logicalCursor = 0;
+logicalCursor = editor.selectionStart;
+
 ws.onopen = () => {
   console.log("connected");
 };
@@ -47,16 +50,18 @@ function encode(text) {
 
 editor.addEventListener("beforeinput", (e) => {
 
-  const start = editor.selectionStart;
+  const start = logicalCursor;
   const end = editor.selectionEnd;
 
   if (e.inputType === "insertLineBreak") {
     e.preventDefault();
+    logicalCursor += 1;
     ws.send(`INSERT ${start} \\n`);
   }
 
   if (e.inputType === "insertText") {
     e.preventDefault();
+    logicalCursor += e.data.length;
     ws.send(`INSERT ${start} ${encode(e.data)}`);
   }
   
@@ -65,11 +70,11 @@ editor.addEventListener("beforeinput", (e) => {
 
     const text = encode((e.clipboardData || window.clipboardData).getData("text"));
     if (!text) return;
-
     if (start !== end) {
+      logicalCursor -= (end - start);
       ws.send(`DELETE ${start} ${end-start}`);
     }
-
+    logicalCursor += text.length;
     ws.send(`INSERT ${start} ${text}`);
   }
 
@@ -77,8 +82,10 @@ editor.addEventListener("beforeinput", (e) => {
     e.preventDefault();
 
     if (start !== end) {
+      logicalCursor -= (end - start);
       ws.send(`DELETE ${start} ${end-start}`);
     } else if (start > 0) {
+      logicalCursor -= 1;
       ws.send(`DELETE ${start-1} 1`);
     }
   }
@@ -87,8 +94,10 @@ editor.addEventListener("beforeinput", (e) => {
     e.preventDefault();
 
     if (start !== end) {
+      logicalCursor -= (end - start);
       ws.send(`DELETE ${start} ${end-start}`);
     } else {
+      logicalCursor -= 1;
       ws.send(`DELETE ${start} 1`);
     }
   }
@@ -113,6 +122,7 @@ function applyOperation(msg) {
       value.slice(pos);
 
     if (pos <= cursor) {
+      logicalCursor += text.length;
       cursor += text.length;
     }
   }
@@ -127,12 +137,14 @@ function applyOperation(msg) {
       value.slice(pos + len);
 
     if (pos < cursor) {
+      logicalCursor -= Math.min(len, logicalCursor - pos);
       cursor -= Math.min(len, cursor - pos);
     }
   }
 
-  editor.selectionStart = cursor;
-  editor.selectionEnd = cursor;
+  editor.selectionStart = logicalCursor;
+  editor.selectionEnd = logicalCursor;
+  console.log("updated cursor:", logicalCursor);
 }
 
 
