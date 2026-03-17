@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
         const auto& applied = node.applied_commands();
         for (int i = last_commit; i < node.commit_index(); ++i) {
           std::string command  = applied[static_cast<std::size_t>(i)];
-          apply_to_document(document, command);
+          apply_to_document(document, command, node_id);
           editor.broadcast(command);
           const std::string committed =
               "node " + std::to_string(node_id) + " committed slot " + std::to_string(i + 1) +

@@ -24,4 +24,4 @@ bool parse_command(const std::string& cmd, EditOperation& out);
 void usage(const char* prog);
 std::unordered_map<int, TcpNodeAddress> parse_nodes(const std::string& spec);
 
-void apply_to_document(std::string& doc, const std::string& cmd);
+void apply_to_document(std::string& doc, const std::string& cmd, int node_id);

@@ -4,6 +4,7 @@
 #include "paxos.hpp"
 #include "paxos_tcp_transport.hpp"
 #include <iostream>
+#include <fstream>
 #include "interface.hpp"
 
 
@@ -111,7 +112,17 @@ bool parse_command(const std::string& cmd, EditOperation& out) {
 	return false;
 }
 
-void apply_to_document(std::string& doc, const std::string& cmd) {
+void persist_document(std::string& document, int node_id) {
+	std::ofstream out("file/document_" + std::to_string(node_id) + ".txt", std::ios::trunc);
+	if (out.is_open()) {
+		out << document;
+		out.close();
+	} else {
+		std::cerr << "Failed to write document\n";
+	}
+}
+
+void apply_to_document(std::string& doc, const std::string& cmd, int node_id) {
     std::istringstream iss(cmd);
     std::string clientId, reqId, type;
     iss >> clientId >> reqId >> type;
@@ -135,6 +146,21 @@ void apply_to_document(std::string& doc, const std::string& cmd) {
     if (type == "DELETE") {
         int pos, len;
         iss >> pos >> len;
-        doc.erase(pos, len);
+
+		if (pos < 0 || pos > static_cast<int>(doc.size())) {
+			std::cerr << "Invalid DELETE pos: " << pos
+					  << " doc size: " << doc.size() << "\n";
+			return;
+		}
+		if (len < 0) {
+			std::cerr << "Invalid DELETE len: " << len << "\n";
+			return;
+		}
+		if (pos + len > static_cast<int>(doc.size())) {
+			len = doc.size() - pos;
+		}
+
+		doc.erase(pos, len);
     }
+	persist_document(doc, node_id);
 }

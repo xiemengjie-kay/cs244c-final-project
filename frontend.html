@@ -73,6 +73,7 @@ document.addEventListener("selectionchange", () => {
   if (document.activeElement === editor) {
     logicalCursor = editor.selectionStart;
   }
+  console.log("select logical cursor:", logicalCursor);
 });
 
 editor.addEventListener("beforeinput", (e) => {
@@ -99,8 +100,7 @@ editor.addEventListener("beforeinput", (e) => {
   if (e.inputType === "insertFromPaste") {
     e.preventDefault();
 
-    const text = encode((e.clipboardData || window.clipboardData).getData("text"));
-    if (!text) return;
+    const text = e.data;
     if (start !== end) {
       logicalCursor -= (end - start);
       const id = requestId++;
@@ -115,9 +115,9 @@ editor.addEventListener("beforeinput", (e) => {
 
   if (e.inputType === "deleteContentBackward") {
     e.preventDefault();
+    console.log("delete backward:", { start, end });
 
     if (start !== end) {
-      logicalCursor -= (end - start);
       const id = requestId++;
       const msg = `${clientId} ${id} DELETE ${start} ${end-start}`;
       sendOp(msg, clientId, id);
@@ -131,7 +131,7 @@ editor.addEventListener("beforeinput", (e) => {
 
   if (e.inputType === "deleteContentForward") {
     e.preventDefault();
-
+    console.log("delete forward:", { start, end });
     if (start !== end) {
       logicalCursor -= (end - start);
       const id = requestId++;
@@ -147,6 +147,7 @@ editor.addEventListener("beforeinput", (e) => {
 });
 
 function applyOperation(msg) {
+  console.log("current logical cursor:", logicalCursor);
   msg = msg.replace(/\\n/g, "\n");
 
   if (msg.startsWith("FULL ")) {
@@ -159,6 +160,7 @@ function applyOperation(msg) {
   }
 
   let cursor = editor.selectionStart;
+  console.log("current cursor:", cursor);
 
   const parts = msg.split(" ");
 
@@ -204,6 +206,7 @@ function applyOperation(msg) {
     }
 
     if (sender !== clientId && pos < logicalCursor) {
+      console.log(sender !== clientId)
       logicalCursor -= Math.min(len, logicalCursor - pos);
     }
   }
