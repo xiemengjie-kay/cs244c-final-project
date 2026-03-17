@@ -53,6 +53,16 @@ function encode(text) {
   return text.replace(/\n/g, "\\n");
 }
 
+let suppressSelectionUpdate = false;
+
+document.addEventListener("selectionchange", () => {
+  if (suppressSelectionUpdate) return;
+
+  if (document.activeElement === editor) {
+    logicalCursor = editor.selectionStart;
+  }
+});
+
 editor.addEventListener("beforeinput", (e) => {
 
   const start = logicalCursor;
@@ -159,8 +169,10 @@ function applyOperation(msg) {
     }
   }
 
+  suppressSelectionUpdate = true;
   editor.selectionStart = cursor;
   editor.selectionEnd = cursor;
+  suppressSelectionUpdate = false;
   console.log("updated logical cursor:", logicalCursor);
   console.log("updated cursor:", cursor);
 }
