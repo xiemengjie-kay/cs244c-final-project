@@ -122,8 +122,11 @@ function applyOperation(msg) {
       value.slice(pos);
 
     if (pos <= cursor) {
-      logicalCursor += text.length;
       cursor += text.length;
+    }
+
+    if (pos <= logicalCursor) {
+      logicalCursor += text.length;
     }
   }
 
@@ -137,14 +140,18 @@ function applyOperation(msg) {
       value.slice(pos + len);
 
     if (pos < cursor) {
-      logicalCursor -= Math.min(len, logicalCursor - pos);
       cursor -= Math.min(len, cursor - pos);
+    }
+
+    if (pos < logicalCursor) {
+      logicalCursor -= Math.min(len, logicalCursor - pos);
     }
   }
 
-  editor.selectionStart = logicalCursor;
-  editor.selectionEnd = logicalCursor;
-  console.log("updated cursor:", logicalCursor);
+  editor.selectionStart = cursor;
+  editor.selectionEnd = cursor;
+  console.log("updated logical cursor:", logicalCursor);
+  console.log("updated cursor:", cursor);
 }
 
 
