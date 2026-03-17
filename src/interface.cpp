@@ -164,3 +164,15 @@ void apply_to_document(std::string& doc, const std::string& cmd, int node_id) {
     }
 	persist_document(doc, node_id);
 }
+
+void load_document(std::string& document, int node_id) {
+	std::ifstream in("file/document_" + std::to_string(node_id) + ".txt");
+	if (in.is_open()) {
+		std::ostringstream ss;
+		ss << in.rdbuf();
+		document = ss.str();
+		in.close();
+	} else {
+		document = ""; // start empty if no file
+	}
+}

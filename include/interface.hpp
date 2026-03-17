@@ -25,3 +25,5 @@ void usage(const char* prog);
 std::unordered_map<int, TcpNodeAddress> parse_nodes(const std::string& spec);
 
 void apply_to_document(std::string& doc, const std::string& cmd, int node_id);
+
+void load_document(std::string& document, int node_id);

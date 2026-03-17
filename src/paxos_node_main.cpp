@@ -80,6 +80,8 @@ int main(int argc, char** argv) {
     std::queue<std::string> input_queue;
     bool stop = false;
 
+    load_document(document, node_id);
+
     // application code starts
 
     // catch events from browser
